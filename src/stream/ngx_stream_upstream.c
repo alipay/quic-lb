@@ -511,6 +511,14 @@ ngx_stream_upstream_server(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             continue;
         }
 
+#ifdef NGX_QUIC_LB
+        if (ngx_strncmp(value[i].data, "sid=", 4) == 0) {
+            us->sid.data = &value[i].data[4];
+            us->sid.len = ngx_strlen((const char*)us->sid.data);
+            continue;
+        }
+#endif
+
         goto invalid;
     }
 

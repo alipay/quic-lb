@@ -628,6 +628,15 @@ ngx_stream_core_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             ls->type = SOCK_DGRAM;
             continue;
         }
+
+#ifdef NGX_QUIC_LB
+        if (ngx_strcmp(value[i].data, "quic") == 0) {
+            ls->type = SOCK_DGRAM;
+            ls->proxy_quic = 1;
+            continue;
+        }
+#endif
+
 #endif
 
         if (ngx_strcmp(value[i].data, "bind") == 0) {

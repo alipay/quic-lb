@@ -1119,6 +1119,24 @@ if [ $STREAM != NO ]; then
         . auto/module
     fi
 
+    if [ $STREAM_QUIC_LB = YES ]; then
+        have=NGX_QUIC_LB . auto/have
+        USE_OPENSSL=YES
+        ngx_module_name="ngx_stream_quic_lb_module \
+                         ngx_stream_upstream_quic_lb_module"
+        ngx_module_deps="src/stream/quic_lb/ngx_stream_quic_lb_module.h \
+                         src/stream/quic_lb/ngx_stream_quic_comm.h \
+                         src/stream/quic_lb/ngx_stream_quic_lb_retry_service.h"
+        ngx_module_srcs="src/stream/quic_lb/ngx_stream_upstream_quic_lb_module.c \
+                         src/stream/quic_lb/ngx_stream_quic_lb_module.c \
+                         src/stream/quic_lb/ngx_stream_quic_comm.c \
+                         src/stream/quic_lb/ngx_stream_quic_lb_retry_service.c"
+        ngx_module_libs=
+        ngx_module_link=$STREAM_QUIC_LB
+
+        . auto/module
+    fi
+
     if [ $STREAM_UPSTREAM_HASH = YES ]; then
         ngx_module_name=ngx_stream_upstream_hash_module
         ngx_module_deps=

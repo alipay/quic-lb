@@ -16,6 +16,11 @@
 #include <ngx_stream_ssl_module.h>
 #endif
 
+#ifdef NGX_QUIC_LB
+#include <quic_lb/ngx_stream_quic_comm.h>
+#include <quic_lb/ngx_stream_quic_lb_retry_service.h>
+#include <quic_lb/ngx_stream_quic_lb_module.h>
+#endif
 
 typedef struct ngx_stream_session_s  ngx_stream_session_t;
 
@@ -66,6 +71,9 @@ typedef struct {
     int                            rcvbuf;
     int                            sndbuf;
     int                            type;
+#ifdef NGX_QUIC_LB
+    unsigned                       proxy_quic:1;
+#endif
 } ngx_stream_listen_t;
 
 
@@ -228,6 +236,10 @@ struct ngx_stream_session_s {
     unsigned                       health_check:1;
 
     unsigned                       limit_conn_status:2;
+#ifdef NGX_QUIC_LB
+    ngx_quic_header_t               *pkt;
+    ngx_quic_lb_conf_t              *quic_lb_conf;
+#endif
 };
 
 
@@ -297,6 +309,9 @@ void ngx_stream_finalize_session(ngx_stream_session_t *s, ngx_uint_t rc);
 extern ngx_module_t  ngx_stream_module;
 extern ngx_uint_t    ngx_stream_max_module;
 extern ngx_module_t  ngx_stream_core_module;
+#ifdef NGX_QUIC_LB
+extern ngx_module_t  ngx_stream_quic_lb_module;
+#endif
 
 
 typedef ngx_int_t (*ngx_stream_filter_pt)(ngx_stream_session_t *s,

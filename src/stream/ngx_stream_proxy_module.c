@@ -669,7 +669,6 @@ ngx_stream_proxy_set_local(ngx_stream_session_t *s, ngx_stream_upstream_t *u,
     return NGX_OK;
 }
 
-
 static void
 ngx_stream_proxy_connect(ngx_stream_session_t *s)
 {
@@ -706,7 +705,22 @@ ngx_stream_proxy_connect(ngx_stream_session_t *s)
     u->state->connect_time = (ngx_msec_t) -1;
     u->state->first_byte_time = (ngx_msec_t) -1;
     u->state->response_time = (ngx_msec_t) -1;
+#ifdef NGX_QUIC_LB
+    if (c->proxy_quic) {
+        ngx_stream_upstream_rr_peer_data_t *rrp = u->peer.data;
 
+        rrp->pkt = ngx_stream_quic_lb_gen_copy_pkt(c, s->pkt);
+
+        if (rrp->pkt == NULL) {
+            ngx_log_error(NGX_LOG_ERR, c->log, 0, "QUIC-LB generate copy pkt error");
+            ngx_stream_proxy_finalize(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
+            return;
+        }
+
+        rrp->quic_lb_conf = s->quic_lb_conf;
+    }
+
+#endif
     rc = ngx_event_connect_peer(&u->peer);
 
     ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0, "proxy connect: %i", rc);
@@ -1561,6 +1575,32 @@ ngx_stream_proxy_process(ngx_stream_session_t *s, ngx_uint_t from_upstream,
         if (do_write && dst) {
 
             if (*out || *busy || dst->buffered) {
+
+#ifdef NGX_QUIC_LB
+                if (c->proxy_quic) {
+                    if (!from_upstream) {
+                        ngx_stream_quic_lb_proxy_call_params_t pcps = {
+                            .buffer_size = pscf->buffer_size,
+                            .connect_timeout = pscf->connect_timeout,
+                            .connect_handler = ngx_stream_proxy_connect_handler,
+                            .proxy_upstream_handler = ngx_stream_proxy_upstream_handler,
+                            .up_rate = pscf->upload_rate,
+                            .down_rate = pscf->download_rate,
+                            .out = *out
+                        };
+
+                        rc = ngx_stream_quic_lb_downstream_pkt_send_process(s, &pcps);
+                        if (rc == NGX_ERROR) {
+                            ngx_stream_proxy_finalize(s, NGX_STREAM_INTERNAL_SERVER_ERROR);
+                            return;
+                        }
+                        if (rc == NGX_DECLINED) {
+                            ngx_stream_proxy_finalize(s, NGX_STREAM_FORBIDDEN);
+                            return;
+                        }
+                    }
+                }
+#endif
                 c->log->action = send_action;
 
                 rc = ngx_stream_top_filter(s, *out, from_upstream);

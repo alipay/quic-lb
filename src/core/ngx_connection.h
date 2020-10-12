@@ -24,7 +24,9 @@ struct ngx_listening_s {
     ngx_str_t           addr_text;
 
     int                 type;
-
+#ifdef NGX_QUIC_LB
+    unsigned            proxy_quic:1;
+#endif
     int                 backlog;
     int                 rcvbuf;
     int                 sndbuf;
@@ -142,7 +144,9 @@ struct ngx_connection_s {
     ngx_pool_t         *pool;
 
     int                 type;
-
+#ifdef NGX_QUIC_LB
+    unsigned            proxy_quic:1;
+#endif
     struct sockaddr    *sockaddr;
     socklen_t           socklen;
     ngx_str_t           addr_text;
