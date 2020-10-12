@@ -1,0 +1,6 @@
+[submodule "libs/cJSON"]
+	path = libs/cJSON
+	url = https://github.com/DaveGamble/cJSON
+[submodule "libs/openssl"]
+	path = libs/openssl
+	url = https://github.com/openssl/openssl

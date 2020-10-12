@@ -129,6 +129,7 @@ STREAM_UPSTREAM_LEAST_CONN=YES
 STREAM_UPSTREAM_RANDOM=YES
 STREAM_UPSTREAM_ZONE=YES
 STREAM_SSL_PREREAD=NO
+STREAM_QUIC_LB=NO
 
 DYNAMIC_MODULES=
 
@@ -316,6 +317,8 @@ use the \"--with-mail_ssl_module\" option instead"
                                          STREAM_GEOIP=DYNAMIC       ;;
         --with-stream_ssl_preread_module)
                                          STREAM_SSL_PREREAD=YES     ;;
+        --with-stream_quic_lb_module)
+                                         STREAM_QUIC_LB=YES         ;;
         --without-stream_limit_conn_module)
                                          STREAM_LIMIT_CONN=NO       ;;
         --without-stream_access_module)  STREAM_ACCESS=NO           ;;

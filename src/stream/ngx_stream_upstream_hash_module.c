@@ -49,15 +49,14 @@ static ngx_int_t ngx_stream_upstream_get_hash_peer(ngx_peer_connection_t *pc,
 
 static ngx_int_t ngx_stream_upstream_init_chash(ngx_conf_t *cf,
     ngx_stream_upstream_srv_conf_t *us);
-static int ngx_libc_cdecl
-    ngx_stream_upstream_chash_cmp_points(const void *one, const void *two);
+static int ngx_libc_cdecl ngx_stream_upstream_chash_cmp_points(const void *one,
+    const void *two);
 static ngx_uint_t ngx_stream_upstream_find_chash_point(
     ngx_stream_upstream_chash_points_t *points, uint32_t hash);
 static ngx_int_t ngx_stream_upstream_init_chash_peer(ngx_stream_session_t *s,
     ngx_stream_upstream_srv_conf_t *us);
 static ngx_int_t ngx_stream_upstream_get_chash_peer(ngx_peer_connection_t *pc,
     void *data);
-
 static void *ngx_stream_upstream_hash_create_conf(ngx_conf_t *cf);
 static char *ngx_stream_upstream_hash(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);

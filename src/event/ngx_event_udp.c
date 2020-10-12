@@ -286,6 +286,9 @@ ngx_event_recvmsg(ngx_event_t *ev)
 
         c->shared = 1;
         c->type = SOCK_DGRAM;
+#ifdef NGX_QUIC_LB
+        c->proxy_quic = ls->proxy_quic;
+#endif
         c->socklen = socklen;
 
 #if (NGX_STAT_STUB)

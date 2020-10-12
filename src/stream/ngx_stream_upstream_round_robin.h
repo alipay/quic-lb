@@ -47,6 +47,10 @@ struct ngx_stream_upstream_rr_peer_s {
     ngx_atomic_t                     lock;
 #endif
 
+#ifdef NGX_QUIC_LB
+    ngx_str_t                        sid;
+#endif
+
     ngx_stream_upstream_rr_peer_t   *next;
 
     NGX_COMPAT_BEGIN(25)
@@ -128,6 +132,10 @@ typedef struct {
     ngx_stream_upstream_rr_peer_t   *current;
     uintptr_t                       *tried;
     uintptr_t                        data;
+#ifdef NGX_QUIC_LB
+    ngx_quic_header_t               *pkt;
+    ngx_quic_lb_conf_t              *quic_lb_conf;
+#endif
 } ngx_stream_upstream_rr_peer_data_t;
 
 

@@ -486,6 +486,9 @@ ngx_stream_optimize_servers(ngx_conf_t *cf, ngx_array_t *ports)
             ls->handler = ngx_stream_init_connection;
             ls->pool_size = 256;
             ls->type = addr[i].opt.type;
+#ifdef NGX_QUIC_LB
+            ls->proxy_quic = addr[i].opt.proxy_quic;
+#endif
 
             cscf = addr->opt.ctx->srv_conf[ngx_stream_core_module.ctx_index];
 

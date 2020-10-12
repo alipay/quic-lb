@@ -1,0 +1,22 @@
+[
+{
+	"conf_id": 0,
+	"route_mode": "plaintext",
+	"sid_len": 14,
+    "retry_service_ctx":{
+		"retry_method":"shared_state",
+	    "retry_mode":"inactive",
+	    "retry_token_key":"01234567890123456789012345678901"
+    }
+},
+{
+	"conf_id": 1,
+	"route_mode": "block_cipher",
+	"sid_len": 14,
+    "retry_service_ctx":{
+		"retry_method":"shared_state",
+	    "retry_mode":"inactive",
+	    "retry_token_key":"01234567890123456789012345678901"
+    }
+}
+]
