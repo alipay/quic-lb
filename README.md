@@ -2,6 +2,13 @@ nginx-quic-lb
 ====
 nginx-quic-lb is an implementation of ietf-quic-lb(see https://tools.ietf.org/html/draft-ietf-quic-load-balancers-04), based on nginx-release-1.18.0
 
+nginx-quic-lb just implement the date plane function of ietf-quic-lb(forward quic packet, retry service and so on), as for "configuration agent" which was defined in draft, user can implement it with nginx conf file and your own control plane.
+
+Some features are still under development:
+```
+(1) Stream cipher/Block cipher
+(2) No-Shared-State Retry Service
+```
 
 How to build
 ----
