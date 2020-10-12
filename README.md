@@ -20,22 +20,25 @@ How to build
 
 How to use:
 ----
-tutorial configuration file(whole configuration file you can see ${quic-lb-dir}/test/conf/quic_lb.conf):
+After success building, you can start quic-lb with this command:
+```
+mkdir logs
+./objs/nginx -p . -c conf/quic_lb.conf
+```
+
+configuration file explanation
 ```
     stream {
         upstream quic_upstreams {
-            quic_lb_mode;
-            server 127.0.0.1:8443 sid=127.0.0.1:8443;
+            quic_lb_mode;  #tag, use to express that upstream block work in quic lb mode
+            server 127.0.0.1:8443 sid=127.0.0.1:8443;  #quic server ip:port and its unique sid
             server 127.0.0.1:8444 sid=127.0.0.1:8444;
-            server 127.0.0.1:8445 sid=127.0.0.1:8445;
-            server 127.0.0.1:8446 sid=127.0.0.1:8446;
-            server 127.0.0.1:8447 sid=127.0.0.1:8447;
         }
 
         server {
-            listen 8001 quic reuseport;
+            listen 8001 quic reuseport; #'quic' is a tag use to express this server block is quic lb
             proxy_pass quic_upstreams;
-            quic_lb_conf_file quic_lb/conf/conf.json;
+            quic_lb_conf_file quic_lb/conf/conf.json; #some configuration options writen in json file
             proxy_timeout 10s;
             proxy_requests 10000;
             proxy_responses 10000;
