@@ -61,7 +61,7 @@ static void ngx_stream_upstream_free_quic_lb_peer(ngx_peer_connection_t *pc, voi
     ngx_uint_t state);
 static int ngx_libc_cdecl ngx_stream_upstream_quic_lb_chash_cmp_points(const void *one,
     const void *two);
-static ngx_uint_t ngx_stream_upstream_find_chash_point(
+static ngx_uint_t ngx_stream_upstream_quic_lb_find_chash_point(
     ngx_stream_upstream_quic_lb_chash_points_t *points, uint32_t hash);
 static ngx_int_t ngx_stream_upstream_quic_lb_get_peer_by_chash(ngx_peer_connection_t *pc,
     void *data);
@@ -469,7 +469,7 @@ ngx_stream_upstream_quic_lb_chash_cmp_points(const void *one, const void *two)
 
 
 static ngx_uint_t
-ngx_stream_upstream_find_chash_point(ngx_stream_upstream_quic_lb_chash_points_t *points,
+ngx_stream_upstream_quic_lb_find_chash_point(ngx_stream_upstream_quic_lb_chash_points_t *points,
     uint32_t hash)
 {
     ngx_uint_t                                  i, j, k;
@@ -535,7 +535,7 @@ ngx_stream_upstream_init_quic_lb_peer(ngx_stream_session_t *s,
 
     ngx_stream_upstream_rr_peers_rlock(qlp->rrp.peers);
 
-    qlp->hash = ngx_stream_upstream_find_chash_point(qlcf->points, hash);
+    qlp->hash = ngx_stream_upstream_quic_lb_find_chash_point(qlcf->points, hash);
 
     ngx_stream_upstream_rr_peers_unlock(qlp->rrp.peers);
 
