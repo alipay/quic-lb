@@ -1,8 +1,10 @@
 nginx-quic-lb
 ====
-nginx-quic-lb is an implementation of ietf-quic-lb(see https://tools.ietf.org/html/draft-ietf-quic-load-balancers-04), based on nginx-release-1.18.0
+nginx-quic-lb is an implementation of [ietf-quic-lb](https://tools.ietf.org/html/draft-ietf-quic-load-balancers-04), based on [nginx-release-1.18.0](https://github.com/nginx/nginx/tree/release-1.18.0), you can see the detailed
+code in [this pull request](https://github.com/alipay/quic-lb/pull/1)
 
-nginx-quic-lb just implement the date plane function of ietf-quic-lb(forward quic packet, retry service and so on), as for "configuration agent" which was defined in draft, user can implement it with nginx conf file and your own control plane.
+nginx-quic-lb just implement the date plane function of ietf-quic-lb(forward quic packet, retry service and so on).
+For "configuration agent" defined in draft, user can implement it with your own control plane and nginx configuration file.
 
 Some features are still under development:
 ```
@@ -13,9 +15,9 @@ Some features are still under development:
 How to build
 ----
 ```
-    1. git clone https://github.com/alipay/quic-lb 
-    2. git submodule update --init --recursive
-    3. sh build.sh
+1. git clone https://github.com/alipay/quic-lb
+2. git submodule update --init --recursive
+3. sh build.sh
 ```
 
 How to use:
@@ -26,65 +28,65 @@ mkdir logs
 ./objs/nginx -p . -c conf/quic_lb.conf
 ```
 
-configuration file explanation
+Explanation of configuration file
 ```
-    stream {
-        upstream quic_upstreams {
-            quic_lb_mode;  #tag, use to express that upstream block work in quic lb mode
-            server 127.0.0.1:8443 sid=127.0.0.1:8443;  #quic server ip:port and its unique sid
-            server 127.0.0.1:8444 sid=127.0.0.1:8444;
-        }
-
-        server {
-            listen 8001 quic reuseport; #'quic' is a tag use to express this server block is quic lb
-            proxy_pass quic_upstreams;
-            quic_lb_conf_file quic_lb/conf/conf.json; #some configuration options writen in json file
-            proxy_timeout 10s;
-            proxy_requests 10000;
-            proxy_responses 10000;
-        }
+stream {
+    upstream quic_upstreams {
+        quic_lb_mode;  #tag, use to express that upstream block work in quic lb mode
+        server 127.0.0.1:8443 sid=127.0.0.1:8443;  #quic server ip:port and its unique sid
+        server 127.0.0.1:8444 sid=127.0.0.1:8444;
     }
+
+    server {
+        listen 8001 quic reuseport; #'quic' is a tag use to express this server block is quic lb
+        proxy_pass quic_upstreams;
+        quic_lb_conf_file quic_lb/conf/conf.json; #some configuration options writen in json file
+        proxy_timeout 10s;
+        proxy_requests 10000;
+        proxy_responses 10000;
+    }
+}
 ```
-conf.json file are description below(as draft description: "'configuration agent' will delivery conf file to quic-lb and quic-server at the same time", so we write the same conf options in quic-lb and server into a single conf.json file):
+Tutorial conf.json file is shown below, as draft description: "'configuration agent' will delivery conf file to quic-lb and quic-server at the same time", so we write the same conf options in quic-lb and server into a single conf.json file.
 ```
-    [{
-        "conf_id": 0,
-        "route_mode": "plaintext",
-        "sid_len": 14,
-        "retry_service_ctx":{
-            "retry_method":"shared_state",
-            "retry_mode":"inactive",
-            "retry_token_key":"01234567890123456789012345678901"
-        }
-    },
-    {
-        "conf_id": 1,
-        "route_mode": "block_cipher",
-        "sid_len": 14,
-        "retry_service_ctx":{
-            "retry_method":"shared_state",
-            "retry_mode":"inactive",
-            "retry_token_key":"01234567890123456789012345678901"
-        }
-    },
-    {
-        "conf_id": 2,
-        "route_mode": "stream_cipher",
-        "sid_len": 14,
-        "retry_service_ctx":{
-            "retry_method":"shared_state",
-            "retry_mode":"inactive",
-            "retry_token_key":"01234567890123456789012345678901"
-        }
-    }]
+[{
+    "conf_id": 0,
+    "route_mode": "plaintext",
+    "sid_len": 14,
+    "retry_service_ctx":{
+        "retry_method":"shared_state",
+        "retry_mode":"inactive",
+        "retry_token_key":"01234567890123456789012345678901"
+    }
+},
+{
+    "conf_id": 1,
+    "route_mode": "block_cipher",
+    "sid_len": 14,
+    "retry_service_ctx":{
+        "retry_method":"shared_state",
+        "retry_mode":"inactive",
+        "retry_token_key":"01234567890123456789012345678901"
+    }
+},
+{
+    "conf_id": 2,
+    "route_mode": "stream_cipher",
+    "sid_len": 14,
+    "retry_service_ctx":{
+        "retry_method":"shared_state",
+        "retry_mode":"inactive",
+        "retry_token_key":"01234567890123456789012345678901"
+    }
+}]
 ```
 
 How to test
 ----
 ```
-    1. pip install pytest
-    2. cd ${quic-lb-dir}/test
-    3. make test
+1. pip install pytest
+2. cd ${quic-lb-dir}/test
+3. make test
 ```
 
 Additional:
