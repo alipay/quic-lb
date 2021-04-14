@@ -37,6 +37,7 @@ typedef struct {
     ngx_rbtree_t                sid_info_tree;
     ngx_rbtree_node_t           sentinel;
     ngx_quic_lb_retry_service_t retry_service;
+    uint64_t                    token_alive_time;
 } ngx_quic_lb_conf_t;
 
 
