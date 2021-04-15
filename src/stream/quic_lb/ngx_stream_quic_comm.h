@@ -133,6 +133,12 @@
      (p) + sizeof(uint64_t))
 
 
+#define ngx_quic_parse_uint64(p)                                              \
+    ((uint64_t) (p)[0] << 56 | (uint64_t) (p)[1] << 48                        \
+     | (uint64_t) (p)[2] << 40 | (uint64_t) (p)[3] << 32                      \
+     | (p)[4] << 24 | (p)[5] << 16 | (p)[6] << 8 | (p)[7] )
+
+
 #define ngx_quic_write_uint16_aligned(p, s)                                   \
     (*(uint16_t *) (p) = htons((uint16_t) (s)), (p) + sizeof(uint16_t))
 

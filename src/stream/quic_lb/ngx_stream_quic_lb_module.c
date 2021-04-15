@@ -875,6 +875,7 @@ ngx_stream_quic_lb_parse_retry_service_json(ngx_conf_t *cf,
     cJSON *retry_method, *retry_mode;
     cJSON *retry_token_enc_info;
     cJSON *retry_key_seq, *retry_token_key, *retry_token_iv_material;
+    cJSON *retry_token_life_time;
 
     if (quic_lb_conf == NULL || root == NULL) {
         return NGX_ERROR;
@@ -946,7 +947,7 @@ ngx_stream_quic_lb_parse_retry_service_json(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    quic_lb_conf->retry_service.retry_key_seq = (u_int8_t)retry_key_seq->valueint;
+    quic_lb_conf->retry_service.retry_key_seq = (uint8_t)retry_key_seq->valueint;
 
     retry_token_key = cJSON_GetObjectItem(retry_token_enc_info, "retry_token_key");
     if (retry_token_key == NULL) {
@@ -984,6 +985,15 @@ ngx_stream_quic_lb_parse_retry_service_json(ngx_conf_t *cf,
     ngx_memcpy(quic_lb_conf->retry_service.retry_token_iv_material,
                retry_token_iv_material->valuestring, NGX_QUIC_RETRY_IV_LEN);
 
+    retry_token_life_time = cJSON_GetObjectItem(retry_token_enc_info, "retry_token_life_time");
+    if (retry_token_life_time == NULL) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+                           ngx_read_file_n " \"%s\" file retry_service_ctx object miss "
+						   "\"retry_token_life_time\" item, use default value", name->data);
+        quic_lb_conf->retry_service.retry_token_alive_time = NGX_QUIC_RETRY_TOKEN_DEFAULT_LIFE_TIME;
+    } else {
+        quic_lb_conf->retry_service.retry_token_alive_time = retry_token_life_time->valueint;
+    }
 
     return NGX_OK;
 }

@@ -27,6 +27,10 @@
 #define NGX_QUIC_RETRY_IV_LEN                     12
 #define NGX_QUIC_RETRY_UNIQ_TOKEN_NUMBER_LEN      12
 #define NGX_QUIC_RETRY_KEY_SEQ_LEN                1
+#define NGX_QUIC_RETRY_CID_LEN_MAX                20
+
+
+#define NGX_QUIC_RETRY_TOKEN_DEFAULT_LIFE_TIME    3000000
 
 
 typedef enum {
@@ -47,7 +51,18 @@ typedef struct {
     uint8_t                     retry_key_seq;
     u_char                      retry_token_key[NGX_QUIC_RETRY_KEY_LEN]; /* AES-128-gcm */
     u_char                      retry_token_iv_material[NGX_QUIC_RETRY_IV_LEN];
+    uint64_t                    retry_token_alive_time;
 } ngx_quic_lb_retry_service_t;
+
+
+typedef struct {
+    uint8_t       odcid_len;
+    uint8_t       rscid_len;
+    uint16_t       port;
+    u_char         odcid[NGX_QUIC_RETRY_CID_LEN_MAX];
+    u_char         rscid[NGX_QUIC_RETRY_CID_LEN_MAX];
+    uint64_t       expire_time;
+} ngx_quic_lb_retry_token_body_t;
 
 
 extern ngx_int_t ngx_stream_quic_lb_do_retry_service(void *,

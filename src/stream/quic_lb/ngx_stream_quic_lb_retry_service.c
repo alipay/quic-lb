@@ -12,7 +12,6 @@
 #include <time.h>
 #include <openssl/aes.h>
 
-#define NGX_QUIC_RETRY_LIFETIME  300000
 
 static ngx_int_t ngx_stream_quic_lb_create_retry_packet(ngx_quic_header_t *pkt, ngx_str_t *res);
 static ngx_int_t ngx_stream_quic_lb_tls_seal(const ngx_quic_cipher_t *cipher,
@@ -36,10 +35,16 @@ static ngx_int_t ngx_stream_quic_lb_new_ngx_quic_lb_model_token(ngx_connection_t
     ngx_quic_lb_conf_t *qconf, ngx_str_t *cids);
 static ngx_int_t ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(ngx_connection_t *c,
     ngx_quic_lb_conf_t *qconf, ngx_str_t *cids, u_char *buf, ngx_int_t buf_len, size_t *out_len);
+static ngx_int_t ngx_stream_quic_lb_parse_quic_lb_model_plain_token_body(u_char *buf,
+    ngx_int_t buf_len, ngx_quic_lb_retry_token_body_t *token_body);
 static ngx_int_t ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
     ngx_quic_header_t *pkt, ngx_quic_lb_conf_t *qconf);
 static ngx_int_t ngx_stream_quic_lb_write_ip_address(ngx_connection_t *c, u_char *buf,
     ngx_int_t buf_len, size_t *out_len);
+static ngx_int_t ngx_stream_quic_lb_write_port(ngx_connection_t *c, u_char *buf,
+    ngx_int_t buf_len, size_t *out_len);
+static uint64_t ngx_stream_quic_lb_get_timestamp(uint64_t token_alive_time);
+static ngx_int_t ngx_stream_quic_lb_validate_timestamp(uint64_t expire_time);
 
 static size_t
 ngx_stream_quic_lb_create_retry_itag(ngx_quic_header_t *pkt, u_char *out,
@@ -152,17 +157,18 @@ static ngx_int_t
 ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
     ngx_quic_header_t *pkt, ngx_quic_lb_conf_t *qconf)
 {
-    size_t                   len;
-    ngx_int_t                res, i;
-    const EVP_CIPHER        *cipher;
-    ngx_quic_secret_t        s;
-    ngx_str_t                token_body_plaintext;
-    ngx_str_t                token_body_enc;
-    ngx_str_t                aad;
-    ngx_str_t                plaintext_buf;
-    ngx_str_t                key_seq;
-    ngx_str_t                unique_token_num;
-    u_char                  *pp, *cp; /* pp for plaintext_buf, cp for recv token*/
+    size_t                          len;
+    ngx_int_t                       res, i;
+    const EVP_CIPHER               *cipher;
+    ngx_quic_secret_t               s;
+    ngx_str_t                       token_body_plaintext;
+    ngx_str_t                       token_body_enc;
+    ngx_str_t                       aad;
+    ngx_str_t                       plaintext_buf;
+    ngx_str_t                       key_seq;
+    ngx_str_t                       unique_token_num;
+    u_char                         *pp, *cp; /* pp for plaintext_buf, cp for recv token*/
+    ngx_quic_lb_retry_token_body_t  token_body;
 
     if (pkt->token.len > NGX_STREAM_QUIC_LB_MAX_RETRY_TOKEN_SIZE
         || pkt->token.len < NGX_QUIC_RETRY_MIN_TOKEN_LEN)
@@ -267,12 +273,25 @@ ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
                      token_body_plaintext.data, token_body_plaintext.len);
 #endif
     /* you can implement your self define token validation here */
+    res = ngx_stream_quic_lb_parse_quic_lb_model_plain_token_body(token_body_plaintext.data,
+                                                                  token_body_plaintext.len, &token_body);
+    if (res != NGX_OK) {
+        ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
+                      "QUIC-LB, token validate faild, parse token body faild");
+        return NGX_ERROR;
+    }
+
+    res = ngx_stream_quic_lb_validate_timestamp(token_body.expire_time);
+    if (res != NGX_OK) {
+        ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
+                      "QUIC-LB, token validate faild, token expired");
+        return NGX_ERROR;
+    }
 
     return NGX_OK;
 }
 
 
-/* format: 1990-08-08T08:08:08Z, total 20B */
 static uint64_t
 ngx_stream_quic_lb_get_timestamp(uint64_t token_alive_time)
 {
@@ -280,7 +299,7 @@ ngx_stream_quic_lb_get_timestamp(uint64_t token_alive_time)
     uint64_t    expire_time;
 
     now = time(NULL);
-    if (now == -1) {
+    if (now < 0) {
         return NGX_ERROR;
     }
 
@@ -288,6 +307,24 @@ ngx_stream_quic_lb_get_timestamp(uint64_t token_alive_time)
     expire_time += token_alive_time;
 
     return expire_time;
+}
+
+
+static ngx_int_t
+ngx_stream_quic_lb_validate_timestamp(uint64_t expire_time)
+{
+    time_t      now;
+
+    now = time(NULL);
+    if (now < 0) {
+        return NGX_ERROR;
+    }
+
+    if (now > 0 && (uint64_t)now > expire_time) {
+        return NGX_DECLINED;
+    }
+
+    return NGX_OK;
 }
 
 
@@ -309,17 +346,19 @@ static ngx_int_t
 ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(ngx_connection_t *c, ngx_quic_lb_conf_t *qconf,
     ngx_str_t *cids, u_char *buf, ngx_int_t buf_len, size_t *out_len)
 {
-    ngx_int_t      token_body_len = 0;
-    ngx_str_t      odcid;
-    ngx_str_t      rscid;
-    uint16_t       port;
-    uint64_t       expire_time;
+    ngx_int_t                           token_body_len = 0;
+    size_t                              l;
+    ngx_quic_lb_retry_token_body_t      token_body;
+    ngx_str_t                           odcid, rscid;
 
     odcid = cids[0];
     rscid = cids[2];
 
-    if (odcid.len > NGX_QUIC_CID_LEN_MAX
-        || rscid.len > NGX_QUIC_CID_LEN_MAX)
+    token_body.odcid_len = odcid.len;
+    token_body.rscid_len = rscid.len;
+
+    if (odcid.len > NGX_QUIC_RETRY_CID_LEN_MAX
+        || rscid.len > NGX_QUIC_RETRY_CID_LEN_MAX)
     {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
                       "QUIC-LB, gen plaintext token body error, odcid or rscid length illegal, "
@@ -327,9 +366,13 @@ ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(ngx_connection_t *c, ngx_q
         return NGX_ERROR;
     }
 
+    ngx_memcpy(token_body.odcid, odcid.data, odcid.len);
+    ngx_memcpy(token_body.rscid, rscid.data, rscid.len);
+
     /* port field only exist when odcid length greater than 0 */
     if (odcid.len > 0) {
-        token_body_len += 2;
+        ngx_stream_quic_lb_write_port(c, (u_char *)&token_body.port, sizeof(token_body.port), &l);
+        token_body_len += l;
     }
 
     /*
@@ -338,7 +381,7 @@ ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(ngx_connection_t *c, ngx_q
      */
     token_body_len = token_body_len + 1 + 1; /* ODCIL and RSCIL */
     token_body_len = token_body_len + odcid.len + rscid.len;
-    token_body_len = token_body_len + 8; /* timestamp */
+    token_body_len = token_body_len + NGX_QUIC_RETRY_TIMESTAP_LEN; /* timestamp */
 
     if (buf_len < token_body_len) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
@@ -346,24 +389,62 @@ ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(ngx_connection_t *c, ngx_q
         return NGX_ERROR;
     }
 
-    port = ((struct sockaddr_in *)(c->sockaddr))->sin_port;
-    expire_time = ngx_stream_quic_lb_get_timestamp(qconf->token_alive_time);
-    if (expire_time <= 0) {
+    token_body.expire_time = ngx_stream_quic_lb_get_timestamp(qconf->retry_service.retry_token_alive_time);
+    if (token_body.expire_time <= 0) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
                       "QUIC-LB, gen timestamp error");
         return NGX_ERROR;
     }
 
-    buf = ngx_quic_write_uint8(buf, odcid.len);
-    buf = ngx_quic_write_uint8(buf, rscid.len);
-    if (odcid.len > 0) {
-        buf = ngx_quic_write_uint16(buf, port);
+    buf = ngx_quic_write_uint8(buf, token_body.odcid_len);
+    buf = ngx_quic_write_uint8(buf, token_body.rscid_len);
+    if (token_body.odcid_len > 0) {
+        buf = ngx_quic_write_uint16(buf, token_body.port);
     }
-    buf = ngx_cpymem(buf, odcid.data, odcid.len);
-    buf = ngx_cpymem(buf, rscid.data, rscid.len);
-    buf = ngx_quic_write_uint64(buf, expire_time);
+    buf = ngx_cpymem(buf, token_body.odcid, token_body.odcid_len);
+    buf = ngx_cpymem(buf, token_body.rscid, token_body.rscid_len);
+    buf = ngx_quic_write_uint64(buf, token_body.expire_time);
 
     *out_len = token_body_len;
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_stream_quic_lb_parse_quic_lb_model_plain_token_body(u_char *buf, ngx_int_t buf_len,
+    ngx_quic_lb_retry_token_body_t *token_body)
+{
+    u_char   *p = buf;
+
+
+    if (buf_len <= 1 + 1 + NGX_QUIC_RETRY_TIMESTAP_LEN) {
+        return NGX_ERROR;
+    }
+
+    token_body->odcid_len = (uint8_t)p[0];
+    p++;
+    buf_len--;
+
+    token_body->odcid_len = (uint8_t)p[0];
+    p++;
+    buf_len--;
+
+    ngx_memcpy(token_body->odcid, p ,token_body->odcid_len);
+    buf_len -= token_body->odcid_len;
+    p += token_body->odcid_len;
+    if (buf_len < NGX_QUIC_RETRY_TIMESTAP_LEN) {
+        return NGX_ERROR;
+    }
+
+    ngx_memcpy(token_body->rscid, p ,token_body->rscid_len);
+    buf_len -= token_body->rscid_len;
+    p += token_body->rscid_len;
+    if (buf_len < NGX_QUIC_RETRY_TIMESTAP_LEN) {
+        return NGX_ERROR;
+    }
+
+    token_body->expire_time = ngx_quic_parse_uint64(buf);
 
     return NGX_OK;
 }
@@ -408,6 +489,49 @@ ngx_stream_quic_lb_write_ip_address(ngx_connection_t *c, u_char *buf,
 
     return NGX_OK;
 }
+
+
+static ngx_int_t
+ngx_stream_quic_lb_write_port(ngx_connection_t *c, u_char *buf,
+    ngx_int_t buf_len, size_t *out_len)
+{
+    struct sockaddr_in   *sin;
+#if (NGX_HAVE_INET6)
+    struct sockaddr_in6  *sin6;
+#endif
+    ngx_int_t             len = sizeof(uint16_t);
+
+    if (buf_len < len) {
+        ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
+                      "QUIC-LB, gen retry token error, buf len too small");
+        return NGX_ERROR;
+    }
+
+    switch (c->sockaddr->sa_family) {
+
+#if (NGX_HAVE_INET6)
+    case AF_INET6:
+        sin6 = (struct sockaddr_in6 *) c->sockaddr;
+        buf = ngx_quic_write_uint16(buf, sin6->sin6_port);
+        break;
+#endif
+
+    case AF_INET:
+        sin = (struct sockaddr_in *) c->sockaddr;
+        buf = ngx_quic_write_uint16(buf, sin->sin_port);
+        break;
+
+    default: /* AF_INET */
+        ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
+                      "QUIC-LB, gen retry token error, only support ipv4/v6");
+        return NGX_ERROR;
+    }
+
+    *out_len = len;
+
+    return NGX_OK;
+}
+
 
 /*
  * Defined in: https://tools.ietf.org/html/draft-ietf-quic-load-balancers-06#section-7.3
