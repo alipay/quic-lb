@@ -14,6 +14,9 @@
 #include <ngx_stream.h>
 
 
+#define NGX_QUIC_DEBUG_CRYPTO
+
+
 #define NGX_QUIC_IV_LEN               12
 
 

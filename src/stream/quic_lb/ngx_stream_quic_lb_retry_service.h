@@ -19,8 +19,8 @@
 #define NGX_QUIC_RETRY_MAX_TOKEN_LEN              77
 #define NGX_QUIC_RETRY_MIN_TOKEN_LEN              39
 #define NGX_QUIC_RETRY_MAX_TOKEN_BODY_LEN         52
-#define NGX_QUIC_RETRY_AAD_LEN                    25
-#define NGX_QUIC_RETRY_BUFFER_SIZE                128
+#define NGX_QUIC_RETRY_AAD_LEN                    29
+#define NGX_QUIC_RETRY_BUFFER_SIZE                256
 #define NGX_QUIC_RETRY_TIMESTAP_LEN               8
 #define NGX_QUIC_RETRY_ICV_LEN                    16
 #define NGX_QUIC_RETRY_KEY_LEN                    16

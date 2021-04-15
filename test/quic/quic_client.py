@@ -18,7 +18,7 @@ class QuicClient(quic_base.QuicBase):
         self._dst_port = dst_port
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._socket.bind((self.src_addr, self.src_port))
-        self._socket.settimeout(500)
+        self._socket.settimeout(300)
 
     def recvfrom(self):
         data, addr = self._socket.recvfrom(32768)
@@ -32,10 +32,3 @@ class QuicClient(quic_base.QuicBase):
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._socket.bind((self._migrate_adrr, self._migrate_port))
         self._socket.settimeout(5)
-
-
-
-
-
-
-

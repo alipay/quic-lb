@@ -7,7 +7,7 @@ import time
 import os
 import json
 
-debug_tag = False
+debug_tag = True
 
 class conf:
     conf_id = 0
@@ -576,7 +576,7 @@ class TestCase():
         assert res == True
 
         # 4. send another packet with token
-        odcid = self.client.gen_random_bytes(self.server_cid_len)
+        odcid = retry_packet.scid
         scid = self.client.gen_random_bytes(self.client_cid_len)
         init_pkt = self.client.quic_construct_init_packet(self.client.token_recved, test_payload, odcid, scid)
         self.client.quic_sendto(init_pkt, self.quic_lb_ip, self.quic_lb_port)

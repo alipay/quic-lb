@@ -293,7 +293,7 @@ ngx_stream_quic_lb_downstream_pkt_send_process(void *s_,
 
     /* sid include conf rotation byte, we only compare sid */
     if (ngx_strncmp(s->pkt->sid.data, rrp->pkt->sid.data,
-                    s->quic_lb_conf->sid_len) != 0)
+                       s->quic_lb_conf->sid_len) != 0)
     {
         rrp->pkt->dcid.len = s->pkt->dcid.len;
         rrp->pkt->sid.len = s->pkt->sid.len;
@@ -303,7 +303,7 @@ ngx_stream_quic_lb_downstream_pkt_send_process(void *s_,
         rrp->quic_lb_conf = s->quic_lb_conf;
 
         /* for initial pkt, do retry service, draft 04, chapter 6. */
-        if (rrp->quic_lb_conf->valid && rrp->pkt->initial_pkt) {
+        if (rrp->quic_lb_conf->valid && s->pkt->initial_pkt) {
             ngx_int_t res = ngx_stream_quic_lb_do_retry_service(qlscf, s->pkt, c);
             if (res == NGX_OK) {
                 ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
@@ -348,7 +348,14 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
     pkt->log = c->pool->log;
     pkt->flags = buf->pos[0];
 
+    ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
+                  "QUIC-LB, start to pasre header from buf");
+
     if (ngx_quic_long_pkt(pkt->flags)) {
+
+        ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
+                      "QUIC-LB, is a long pkt");
+
         if (ngx_stream_quic_lb_parse_long_header(pkt) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
                           "QUIC-LB, recv invalid long header packet.");
@@ -357,6 +364,8 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
 
         if (ngx_quic_pkt_in(pkt->flags)) {
             pkt->initial_pkt = 1;
+            ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
+                          "QUIC-LB, is init pkt");
             /* get token*/
             if (ngx_quic_parse_initial_header(pkt) != NGX_OK) {
                 ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
