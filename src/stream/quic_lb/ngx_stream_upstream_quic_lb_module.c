@@ -589,7 +589,7 @@ ngx_stream_upstream_get_quic_lb_peer(ngx_peer_connection_t *pc, void *data)
         peer = ngx_stream_upstream_quic_lb_get_peer_by_sid(pc, rrp);
 
         /*
-         * if sid match faild, try const hash choose peer
+         * if sid match failed, try const hash choose peer
          */
         if (peer == NULL) {
             ngx_stream_upstream_rr_peers_unlock(peers);

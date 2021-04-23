@@ -17,8 +17,8 @@ static ngx_int_t ngx_stream_quic_lb_create_retry_packet(ngx_quic_header_t *pkt, 
 static ngx_int_t ngx_stream_quic_lb_tls_seal(const ngx_quic_cipher_t *cipher,
     ngx_quic_secret_t *s, ngx_str_t *out, u_char *nonce, ngx_str_t *in,
     ngx_str_t *ad, ngx_log_t *log);
-static ngx_int_t ngx_stream_quic_lb_tls_open(const ngx_quic_cipher_t *cipher, ngx_quic_secret_t *s,
-    ngx_str_t *out, u_char *nonce, ngx_str_t *in, ngx_str_t *ad,
+static ngx_int_t ngx_stream_quic_lb_tls_open(const ngx_quic_cipher_t *cipher, 
+    ngx_quic_secret_t *s, ngx_str_t *out, u_char *nonce, ngx_str_t *in, ngx_str_t *ad,
     ngx_log_t *log);
 
 static ngx_int_t ngx_stream_quic_lb_retry_ciphers(ngx_ssl_conn_t *ssl_conn,
@@ -31,13 +31,14 @@ static ngx_int_t ngx_stream_quic_lb_gen_and_send_retry_packet(ngx_connection_t *
     ngx_quic_lb_conf_t *qconf, ngx_str_t *cids);
 static ngx_int_t ngx_stream_quic_lb_gen_new_cid(ngx_str_t *new_dcid, ngx_connection_t *c);
 
-static ngx_int_t ngx_stream_quic_lb_new_ngx_quic_lb_model_token(ngx_connection_t *c, ngx_str_t *token,
-    ngx_quic_lb_conf_t *qconf, ngx_str_t *cids);
-static ngx_int_t ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(ngx_connection_t *c,
-    ngx_quic_lb_conf_t *qconf, ngx_str_t *cids, u_char *buf, ngx_int_t buf_len, size_t *out_len);
+static ngx_int_t ngx_stream_quic_lb_new_share_state_retry_token(ngx_connection_t *c, 
+    ngx_str_t *token, ngx_quic_lb_conf_t *qconf, ngx_str_t *cids);
+static ngx_int_t ngx_stream_quic_lb_gen_share_state_plain_token_body(ngx_connection_t *c,
+    retry_token_enc_info_t *enc_info, ngx_str_t *cids, u_char *buf, ngx_int_t buf_len,
+    size_t *out_len);
 static ngx_int_t ngx_stream_quic_lb_parse_quic_lb_model_plain_token_body(u_char *buf,
     ngx_int_t buf_len, ngx_quic_lb_retry_token_body_t *token_body);
-static ngx_int_t ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
+static ngx_int_t ngx_stream_quic_lb_validate_share_state_token(ngx_connection_t *c,
     ngx_quic_header_t *pkt, ngx_quic_lb_conf_t *qconf);
 static ngx_int_t ngx_stream_quic_lb_write_ip_address(ngx_connection_t *c, u_char *buf,
     ngx_int_t buf_len, size_t *out_len);
@@ -45,6 +46,8 @@ static ngx_int_t ngx_stream_quic_lb_write_port(ngx_connection_t *c, u_char *buf,
     ngx_int_t buf_len, size_t *out_len);
 static uint64_t ngx_stream_quic_lb_get_timestamp(uint64_t token_alive_time);
 static ngx_int_t ngx_stream_quic_lb_validate_timestamp(uint64_t expire_time);
+static ngx_int_t ngx_stream_quic_lb_get_key_index(ngx_quic_lb_conf_t *qconf, uint8_t key_seq);
+static ngx_int_t ngx_stream_quic_lb_generate_key_index(ngx_quic_lb_conf_t *qconf);
 
 static size_t
 ngx_stream_quic_lb_create_retry_itag(ngx_quic_header_t *pkt, u_char *out,
@@ -96,7 +99,7 @@ ngx_stream_quic_lb_process_retry_service_in_shared_state(ngx_quic_lb_conf_t *con
         return NGX_ERROR;
     }
 
-    rc = ngx_stream_quic_lb_validate_quic_lb_model_token(c, pkt, conf);
+    rc = ngx_stream_quic_lb_validate_share_state_token(c, pkt, conf);
     ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
                   "QUIC-LB, retry service, validate token:%s, rc:%d",
                   rc == NGX_OK ? "suc":"failed", rc);
@@ -115,7 +118,7 @@ ngx_stream_quic_lb_gen_and_send_retry_packet(ngx_connection_t *c,
 
     ngx_memzero(buf, NGX_QUIC_RETRY_BUFFER_SIZE);
 
-    if (ngx_stream_quic_lb_new_ngx_quic_lb_model_token(c, &token,
+    if (ngx_stream_quic_lb_new_share_state_retry_token(c, &token,
                                                        qconf, cids) != NGX_OK)
     {
         return NGX_ERROR;
@@ -154,7 +157,7 @@ ngx_stream_quic_lb_gen_and_send_retry_packet(ngx_connection_t *c,
 
 
 static ngx_int_t
-ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
+ngx_stream_quic_lb_validate_share_state_token(ngx_connection_t *c,
     ngx_quic_header_t *pkt, ngx_quic_lb_conf_t *qconf)
 {
     size_t                          len;
@@ -165,18 +168,22 @@ ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
     ngx_str_t                       token_body_enc;
     ngx_str_t                       aad;
     ngx_str_t                       plaintext_buf;
-    ngx_str_t                       key_seq;
+    uint8_t                         key_seq;
+    ngx_int_t                       key_index;
     ngx_str_t                       unique_token_num;
-    u_char                         *pp, *cp; /* pp for plaintext_buf, cp for recv token*/
+    u_char                         *pp, *cp; /* pp for plaintext_buf, cp for recv token */
     ngx_quic_lb_retry_token_body_t  token_body;
 
     if (pkt->token.len > NGX_STREAM_QUIC_LB_MAX_RETRY_TOKEN_SIZE
         || pkt->token.len < NGX_QUIC_RETRY_MIN_TOKEN_LEN)
     {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                      "QUIC-LB, token validate faild, length illegal");
+                      "QUIC-LB, token validate failed, length illegal");
     }
-
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token validate, token:",
+                     pkt->token.data, pkt->token.len);
+#endif
     unique_token_num.data = pkt->token.data;
     unique_token_num.len = NGX_QUIC_RETRY_IV_LEN;
 #ifdef NGX_QUIC_DEBUG_CRYPTO
@@ -187,7 +194,7 @@ ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
     plaintext_buf.data = ngx_palloc(c->pool, plaintext_buf.len);
     if (plaintext_buf.data == NULL) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                      "QUIC-LB, token validate faild, ngx_palloc error");
+                      "QUIC-LB, token validate failed, ngx_palloc error");
         return NGX_ERROR;
     }
     ngx_memzero(plaintext_buf.data, plaintext_buf.len);
@@ -198,7 +205,7 @@ ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
     res = ngx_stream_quic_lb_write_ip_address(c, pp, NGX_QUIC_RETRY_IP_ADDR_LEN, &len);
     if (res != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                      "QUIC-LB, token validate faild, write ip address error");
+                      "QUIC-LB, token validate failed, write ip address error");
         return NGX_ERROR;
     }
     pp += len;
@@ -208,14 +215,28 @@ ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
     pp = ngx_cpymem(pp, cp, NGX_QUIC_RETRY_UNIQ_TOKEN_NUMBER_LEN);
     cp += NGX_QUIC_RETRY_UNIQ_TOKEN_NUMBER_LEN;
 
-    key_seq.data = pp;
-    key_seq.len = NGX_QUIC_RETRY_KEY_SEQ_LEN;
+    key_seq = *cp;
 #ifdef NGX_QUIC_DEBUG_CRYPTO
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token validate, key_seq:",
-                     key_seq.data, key_seq.len);
+                     &key_seq, NGX_QUIC_RETRY_KEY_SEQ_LEN);
 #endif
-    pp = ngx_cpymem(pp, cp, key_seq.len);
+    pp = ngx_cpymem(pp, cp, NGX_QUIC_RETRY_KEY_SEQ_LEN);
     cp += NGX_QUIC_RETRY_KEY_SEQ_LEN;
+
+    key_index = ngx_stream_quic_lb_get_key_index(qconf, key_seq);
+    if (key_index == NGX_ERROR) {
+        ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
+                      "QUIC-LB, token validate failed, key_seq illegal");
+        return NGX_ERROR;
+    } else if (key_index == NGX_DECLINED) {
+        ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
+                      "QUIC-LB, token validate failed, can not find matched key_seq");
+        return NGX_ERROR;
+    }
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token validate, "
+                     "key_index:", &key_index, sizeof(ngx_int_t));
+#endif
 
     aad.len = pp - plaintext_buf.data;
 
@@ -224,22 +245,22 @@ ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
     if (token_body_enc.len <= 0) {
         /* should never happen */
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                      "QUIC-LB, token validate faild, internal error");
+                      "QUIC-LB, token validate failed, internal error");
         return NGX_ERROR;
     }
 
     /* decrypt token */
     cipher = EVP_aes_128_gcm();
     s.key.len = NGX_QUIC_RETRY_KEY_LEN;
-    s.key.data = qconf->retry_service.retry_token_key;
+    s.key.data = qconf->retry_service.retry_token_enc_infos[key_index].retry_token_key;
     s.iv.len = NGX_QUIC_RETRY_IV_LEN;
     s.iv.data = ngx_palloc(c->pool, s.iv.len);
     if (s.iv.data == NULL) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                      "QUIC-LB, token validate faild, ngx_palloc error");
+                      "QUIC-LB, token validate failed, ngx_palloc error");
         return NGX_ERROR;
     }
-    ngx_memcpy(s.iv.data, qconf->retry_service.retry_token_iv_material, s.iv.len);
+    ngx_memcpy(s.iv.data, qconf->retry_service.retry_token_enc_infos[key_index].retry_token_iv_material, s.iv.len);
 #ifdef NGX_QUIC_DEBUG_CRYPTO
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token validate, "
                      "retry_token_iv_material:", s.iv.data,
@@ -264,7 +285,7 @@ ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
                                       &token_body_enc, &aad, c->pool->log);
     if (res != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                      "QUIC-LB, token validate faild, decrypt faild");
+                      "QUIC-LB, token validate failed, decrypt failed");
         return NGX_ERROR;
     }
 
@@ -277,14 +298,14 @@ ngx_stream_quic_lb_validate_quic_lb_model_token(ngx_connection_t *c,
                                                                   token_body_plaintext.len, &token_body);
     if (res != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                      "QUIC-LB, token validate faild, parse token body faild");
+                      "QUIC-LB, token validate failed, parse token body failed");
         return NGX_ERROR;
     }
 
     res = ngx_stream_quic_lb_validate_timestamp(token_body.expire_time);
     if (res != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                      "QUIC-LB, token validate faild, token expired");
+                      "QUIC-LB, token validate failed, token expired");
         return NGX_ERROR;
     }
 
@@ -343,11 +364,12 @@ ngx_stream_quic_lb_validate_timestamp(uint64_t expire_time)
  * ++++++++++++++++++++++++++++++++++++++
  */
 static ngx_int_t
-ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(ngx_connection_t *c, ngx_quic_lb_conf_t *qconf,
-    ngx_str_t *cids, u_char *buf, ngx_int_t buf_len, size_t *out_len)
+ngx_stream_quic_lb_gen_share_state_plain_token_body(ngx_connection_t *c, 
+    retry_token_enc_info_t *enc_info, ngx_str_t *cids, u_char *buf, 
+    ngx_int_t buf_len, size_t *out_len)
 {
     ngx_int_t                           token_body_len = 0;
-    size_t                              l;
+    size_t                              len;
     ngx_quic_lb_retry_token_body_t      token_body;
     ngx_str_t                           odcid, rscid;
 
@@ -371,8 +393,8 @@ ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(ngx_connection_t *c, ngx_q
 
     /* port field only exist when odcid length greater than 0 */
     if (odcid.len > 0) {
-        ngx_stream_quic_lb_write_port(c, (u_char *)&token_body.port, sizeof(token_body.port), &l);
-        token_body_len += l;
+        ngx_stream_quic_lb_write_port(c, (u_char *)&token_body.port, sizeof(token_body.port), &len);
+        token_body_len += len;
     }
 
     /*
@@ -389,7 +411,7 @@ ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(ngx_connection_t *c, ngx_q
         return NGX_ERROR;
     }
 
-    token_body.expire_time = ngx_stream_quic_lb_get_timestamp(qconf->retry_service.retry_token_alive_time);
+    token_body.expire_time = ngx_stream_quic_lb_get_timestamp(enc_info->retry_token_alive_time);
     if (token_body.expire_time <= 0) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
                       "QUIC-LB, gen timestamp error");
@@ -532,6 +554,49 @@ ngx_stream_quic_lb_write_port(ngx_connection_t *c, u_char *buf,
     return NGX_OK;
 }
 
+/* now we just random choose a vaild key_seq, and use it for key_seq */
+static ngx_int_t
+ngx_stream_quic_lb_generate_key_index(ngx_quic_lb_conf_t *qconf)
+{
+    uint8_t  key_index;
+
+    if (qconf->retry_service.retry_key_num <= 0
+        || qconf->retry_service.retry_key_num > NGX_QUIC_RETRY_MAX_KEY_NUM)
+    {
+        return NGX_ERROR;
+    }
+
+    key_index = ngx_random() % qconf->retry_service.retry_key_num;
+
+    return key_index;
+}
+
+
+static ngx_int_t
+ngx_stream_quic_lb_get_key_index(ngx_quic_lb_conf_t *qconf, uint8_t key_seq)
+{
+    ngx_int_t   i;
+
+    if (key_seq > NGX_QUIC_RETRY_MAX_KEY_NUM) {
+        return NGX_ERROR;
+    }
+
+    if (qconf->retry_service.retry_key_num <= 0
+        || qconf->retry_service.retry_key_num > NGX_QUIC_RETRY_MAX_KEY_NUM)
+    {
+        /* should never happen */
+        return NGX_ERROR;
+    }
+
+    for (i = 0; i < qconf->retry_service.retry_key_num; i++) {
+        if (qconf->retry_service.retry_token_enc_infos[i].retry_key_seq == key_seq) {
+            return i;
+        }
+    }
+
+    return NGX_DECLINED;
+}
+
 
 /*
  * Defined in: https://tools.ietf.org/html/draft-ietf-quic-load-balancers-06#section-7.3
@@ -546,10 +611,11 @@ ngx_stream_quic_lb_write_port(ngx_connection_t *c, u_char *buf,
  * Key format: 128 bit, get by key-seq and conf
  */
 static ngx_int_t
-ngx_stream_quic_lb_new_ngx_quic_lb_model_token(ngx_connection_t *c, ngx_str_t *token,
+ngx_stream_quic_lb_new_share_state_retry_token(ngx_connection_t *c, ngx_str_t *token,
     ngx_quic_lb_conf_t *qconf, ngx_str_t *cids)
 {
     uint8_t               key_seq;
+    ngx_int_t             key_index;
     ngx_str_t             plaintext_buf;
     u_char               *p;
     ngx_str_t             token_body_plaintext, token_body_enc, aad;
@@ -598,7 +664,18 @@ ngx_stream_quic_lb_new_ngx_quic_lb_model_token(ngx_connection_t *c, ngx_str_t *t
     }
     p += NGX_QUIC_RETRY_UNIQ_TOKEN_NUMBER_LEN;
 
-    key_seq = qconf->retry_service.retry_key_seq;
+    key_index = ngx_stream_quic_lb_generate_key_index(qconf);
+    if (key_index < 0) {
+        ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
+                      "QUIC-LB, gen retry token error, gen key_index error");
+        return NGX_ERROR;
+    }
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token generate, "
+                     "key_index:", &key_index, sizeof(ngx_int_t));
+#endif
+
+    key_seq = qconf->retry_service.retry_token_enc_infos[key_index].retry_key_seq;
     p = ngx_quic_write_uint8(p, key_seq);
     aad.len = p - aad.data;
 
@@ -609,7 +686,8 @@ ngx_stream_quic_lb_new_ngx_quic_lb_model_token(ngx_connection_t *c, ngx_str_t *t
                      &key_seq, NGX_QUIC_RETRY_KEY_SEQ_LEN);
 #endif
 
-    res = ngx_stream_quic_lb_gen_quic_lb_model_plain_token_body(c, qconf, cids, p,
+    res = ngx_stream_quic_lb_gen_share_state_plain_token_body(c,
+              &qconf->retry_service.retry_token_enc_infos[key_index], cids, p,
               NGX_QUIC_RETRY_MAX_TOKEN_BODY_LEN, &token_body_plaintext.len);
     if (res != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
@@ -641,7 +719,7 @@ ngx_stream_quic_lb_new_ngx_quic_lb_model_token(ngx_connection_t *c, ngx_str_t *t
     token_body_enc.len = token_body_plaintext.len;
     cipher = EVP_aes_128_gcm();
     s.key.len = NGX_QUIC_RETRY_KEY_LEN;
-    s.key.data = qconf->retry_service.retry_token_key;
+    s.key.data = qconf->retry_service.retry_token_enc_infos[key_index].retry_token_key;
     s.iv.len = NGX_QUIC_RETRY_IV_LEN;
     s.iv.data = ngx_palloc(c->pool, s.iv.len);
     if (s.iv.data == NULL) {
@@ -649,7 +727,9 @@ ngx_stream_quic_lb_new_ngx_quic_lb_model_token(ngx_connection_t *c, ngx_str_t *t
                       "QUIC-LB, gen retry token error, ngx_palloc error");
         return NGX_ERROR;
     }
-    ngx_memcpy(s.iv.data, qconf->retry_service.retry_token_iv_material, s.iv.len);
+    ngx_memcpy(s.iv.data,
+               qconf->retry_service.retry_token_enc_infos[key_index].retry_token_iv_material,
+               s.iv.len);
 #ifdef NGX_QUIC_DEBUG_CRYPTO
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token generate, "
                      "retry_token_iv_material:", s.iv.data,
@@ -677,6 +757,10 @@ ngx_stream_quic_lb_new_ngx_quic_lb_model_token(ngx_connection_t *c, ngx_str_t *t
 #ifdef NGX_QUIC_DEBUG_CRYPTO
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token generate, body enc:",
                      token_body_enc.data, token_body_enc.len);
+#endif
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token generate, token:",
+                     token->data, token->len);
 #endif
 
     return NGX_OK;

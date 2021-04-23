@@ -23,6 +23,7 @@
 #define NGX_QUIC_RETRY_BUFFER_SIZE                256
 #define NGX_QUIC_RETRY_TIMESTAP_LEN               8
 #define NGX_QUIC_RETRY_ICV_LEN                    16
+#define NGX_QUIC_RETRY_MAX_KEY_NUM                16
 #define NGX_QUIC_RETRY_KEY_LEN                    16
 #define NGX_QUIC_RETRY_IV_LEN                     12
 #define NGX_QUIC_RETRY_UNIQ_TOKEN_NUMBER_LEN      12
@@ -46,12 +47,18 @@ typedef enum {
 
 
 typedef struct {
-    ngx_quic_lb_retry_method_e  retry_method;
-    ngx_quic_lb_retry_mode_e    retry_mode;
     uint8_t                     retry_key_seq;
     u_char                      retry_token_key[NGX_QUIC_RETRY_KEY_LEN]; /* AES-128-gcm */
     u_char                      retry_token_iv_material[NGX_QUIC_RETRY_IV_LEN];
     uint64_t                    retry_token_alive_time;
+} retry_token_enc_info_t;
+
+
+typedef struct {
+    ngx_quic_lb_retry_method_e  retry_method;
+    ngx_quic_lb_retry_mode_e    retry_mode;
+    uint8_t                     retry_key_num;
+    retry_token_enc_info_t     *retry_token_enc_infos;
 } ngx_quic_lb_retry_service_t;
 
 

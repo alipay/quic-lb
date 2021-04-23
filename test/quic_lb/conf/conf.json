@@ -6,12 +6,11 @@
     "retry_service_ctx":{
 		"retry_method":"shared_state",
 		"retry_mode":"inactive",
-		"retry_token_enc_info":{
+		"retry_token_enc_info":[{
 			"retry_key_seq": 0,
 			"retry_token_key":"0123456789012345",
 			"retry_token_iv_material": "123456789012"
-		}
-
+		}]
     }
 },
 {
@@ -21,11 +20,11 @@
     "retry_service_ctx":{
 		"retry_method":"shared_state",
 	    "retry_mode":"inactive",
-	    "retry_token_enc_info":{
+	    "retry_token_enc_info":[{
 			"retry_key_seq": 0,
 			"retry_token_key":"0123456789012345",
 			"retry_token_iv_material": "123456789012"
-		}
+		}]
     }
 }
 ]
