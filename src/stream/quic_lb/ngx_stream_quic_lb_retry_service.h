@@ -29,6 +29,8 @@
 #define NGX_QUIC_RETRY_UNIQ_TOKEN_NUMBER_LEN      12
 #define NGX_QUIC_RETRY_KEY_SEQ_LEN                1
 #define NGX_QUIC_RETRY_CID_LEN_MAX                20
+/* TODO: make skew tobe config variable */
+#define NGX_QUIC_RETRY_TIMESTAMP_SKEW             5
 
 
 #define NGX_QUIC_RETRY_TOKEN_DEFAULT_LIFE_TIME    3000000

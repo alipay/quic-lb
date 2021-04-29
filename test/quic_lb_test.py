@@ -603,6 +603,67 @@ class TestCase():
         assert addr[1] == self.quic_lb_port
         assert server.recv_correct_app_packet_num == 1
 
+    def test_nginx_quic_lb_retry_service_with_zero_length_odcid(self):
+        os.system("pkill nginx")
+        os.system("./quic_lb/nginx -p quic_lb -c conf/quic_lb_retry_on.conf")
+        self.client = quic_client.QuicClient(self.client_src_addr, self.client_src_port,
+                                             "", "", self.quic_lb_ip, self.quic_lb_port)
+        # 1. send initial packet without token
+        token = self.client.token_recved
+        test_payload = "this is test payload"
+        odcid = ""
+        self.client.odcid = odcid
+        self.client.odcid_len = 0
+        scid = self.client.gen_random_bytes(self.client_cid_len)
+        init_pkt = self.client.quic_construct_init_packet(token, test_payload, odcid, scid)
+        self.client.quic_sendto(init_pkt, self.quic_lb_ip, self.quic_lb_port)
+
+        # 2. expect recv retry packet from quiclb , not server
+        data, addr = self.client.recvfrom()
+        assert self.client.quic_packet_is_retry_packet(data) == True
+        found = False
+        for i in range(0, self.test_server_num_ues_retry):
+            server = self.server_arr_retry[i]
+            if server.retry_recv_packet_with_token_num > 0:
+                found = True
+                break
+        assert found == False
+
+        # 3. get retry token from retry packet, and verify tag
+        retry_packet = quic_base.RetryPacket(data)
+        self.client.token_recved = retry_packet.retry_token_data
+        res = retry_packet.pkt_verify_retry_tag(self.client.odcid, self.client.odcid_len)
+        print("[client] verify retry tag result:", res)
+        assert res == True
+
+        # 4. send another packet with token
+        odcid = retry_packet.scid
+        scid = self.client.gen_random_bytes(self.client_cid_len)
+        init_pkt = self.client.quic_construct_init_packet(self.client.token_recved, test_payload, odcid, scid)
+        self.client.quic_sendto(init_pkt, self.quic_lb_ip, self.quic_lb_port)
+
+        # 5. recv initial packet again from quic server, with token validated succ
+        data, addr = self.client.recvfrom()
+        assert self.client.quic_packet_is_long_packet(data) == True
+        assert addr[0] == self.quic_lb_ip
+        assert addr[1] == self.quic_lb_port
+        found = False
+        for i in range(0, self.test_server_num_ues_retry):
+            server = self.server_arr_retry[i]
+            if server.retry_recv_packet_with_valid_token_num > 0 and server.recv_correct_init_packet_num > 0:
+                found = True
+                break
+        assert found == True
+
+       # 6. send short packet to server
+        init_packet = quic_base.InitPacket(data)
+        app_pkt = self.client.quic_construct_short_header_packet(init_packet.scid, test_payload)
+        self.client.quic_sendto(app_pkt, self.quic_lb_ip, self.quic_lb_port)
+        data, addr = self.client.recvfrom()
+        assert addr[0] == self.quic_lb_ip
+        assert addr[1] == self.quic_lb_port
+        assert server.recv_correct_app_packet_num == 1
+
 # for some print, use this again
 if __name__ == "__main__":
     pytest.main(["-s", "quic_lb_test.py"])
