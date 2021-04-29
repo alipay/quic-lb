@@ -7,7 +7,7 @@ import time
 import os
 import json
 
-debug_tag = False
+debug_tag = True
 
 class conf:
     conf_id = 0
@@ -445,7 +445,7 @@ class TestCase():
         init_pkt = self.client.quic_construct_init_packet(token, test_payload, odcid, scid)
         self.client.quic_sendto(init_pkt, self.quic_lb_ip, self.quic_lb_port)
         data, addr = self.client.recvfrom()
-        # if sid route faild, quic lb use weight consistant hash algorithm, it will
+        # if sid route failed, quic lb use weight consistant hash algorithm, it will
         # choose the 1th server as upstream.
         # Todo: weight consistant hash algorithm implement
         server = self.server_arr[0]
@@ -576,7 +576,7 @@ class TestCase():
         assert res == True
 
         # 4. send another packet with token
-        odcid = self.client.gen_random_bytes(self.server_cid_len)
+        odcid = retry_packet.scid
         scid = self.client.gen_random_bytes(self.client_cid_len)
         init_pkt = self.client.quic_construct_init_packet(self.client.token_recved, test_payload, odcid, scid)
         self.client.quic_sendto(init_pkt, self.quic_lb_ip, self.quic_lb_port)

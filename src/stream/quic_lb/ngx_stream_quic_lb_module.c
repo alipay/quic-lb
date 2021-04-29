@@ -293,7 +293,7 @@ ngx_stream_quic_lb_downstream_pkt_send_process(void *s_,
 
     /* sid include conf rotation byte, we only compare sid */
     if (ngx_strncmp(s->pkt->sid.data, rrp->pkt->sid.data,
-                    s->quic_lb_conf->sid_len) != 0)
+                       s->quic_lb_conf->sid_len) != 0)
     {
         rrp->pkt->dcid.len = s->pkt->dcid.len;
         rrp->pkt->sid.len = s->pkt->sid.len;
@@ -303,7 +303,7 @@ ngx_stream_quic_lb_downstream_pkt_send_process(void *s_,
         rrp->quic_lb_conf = s->quic_lb_conf;
 
         /* for initial pkt, do retry service, draft 04, chapter 6. */
-        if (rrp->quic_lb_conf->valid && rrp->pkt->initial_pkt) {
+        if (rrp->quic_lb_conf->valid && s->pkt->initial_pkt) {
             ngx_int_t res = ngx_stream_quic_lb_do_retry_service(qlscf, s->pkt, c);
             if (res == NGX_OK) {
                 ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
@@ -348,7 +348,14 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
     pkt->log = c->pool->log;
     pkt->flags = buf->pos[0];
 
+    ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
+                  "QUIC-LB, start to pasre header from buf");
+
     if (ngx_quic_long_pkt(pkt->flags)) {
+
+        ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
+                      "QUIC-LB, is a long pkt");
+
         if (ngx_stream_quic_lb_parse_long_header(pkt) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
                           "QUIC-LB, recv invalid long header packet.");
@@ -357,6 +364,8 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
 
         if (ngx_quic_pkt_in(pkt->flags)) {
             pkt->initial_pkt = 1;
+            ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
+                          "QUIC-LB, is init pkt");
             /* get token*/
             if (ngx_quic_parse_initial_header(pkt) != NGX_OK) {
                 ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
@@ -862,8 +871,13 @@ static ngx_int_t
 ngx_stream_quic_lb_parse_retry_service_json(ngx_conf_t *cf,
     ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name)
 {
-    cJSON *retry_service_ctx;
-    cJSON *retry_method, *retry_mode, *retry_token_key;
+    ngx_int_t   retry_token_enc_info_nums;
+    ngx_int_t   i;
+    cJSON      *retry_service_ctx;
+    cJSON      *retry_method, *retry_mode;
+    cJSON      *retry_token_enc_info, *retry_token_enc_info_item;
+    cJSON      *retry_key_seq, *retry_token_key, *retry_token_iv_material;
+    cJSON      *retry_token_life_time;
 
     if (quic_lb_conf == NULL || root == NULL) {
         return NGX_ERROR;
@@ -912,24 +926,108 @@ ngx_stream_quic_lb_parse_retry_service_json(ngx_conf_t *cf,
         return NGX_ERROR;
     }
 
-    retry_token_key = cJSON_GetObjectItem(retry_service_ctx, "retry_token_key");
-    if (retry_token_key == NULL) {
+
+    retry_token_enc_info = cJSON_GetObjectItem(retry_service_ctx, "retry_token_enc_info");
+    if (retry_token_enc_info == NULL) {
         ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
                            ngx_read_file_n " \"%s\" file retry_service_ctx object has a wrong item, "
-						   "need \"retry_token_key\" object ", name->data);
+						   "need \"retry_token_enc_info\" object ", name->data);
         return NGX_ERROR;
     }
 
-    /* token use AES-256 encrypt, key length should always be 32 */
-    if (ngx_strlen(retry_token_key->valuestring) != 32) {
+    retry_token_enc_info_nums = cJSON_GetArraySize(retry_token_enc_info);
+    if (retry_token_enc_info_nums <= 0) {
         ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
-                           ngx_read_file_n " \"%s\" file retry_service_ctx object has a wrong item, "
-						   "\"retry_token_key\" should be 32", name->data);
+                           ngx_read_file_n " \"%s\" file retry_token_enc_info object "
+                           "should have much than one item", name->data);
         return NGX_ERROR;
     }
 
-    ngx_memcpy(quic_lb_conf->retry_service.retry_token_key,
-               retry_token_key->valuestring, 32);
+    if (retry_token_enc_info_nums > NGX_QUIC_RETRY_MAX_KEY_NUM) {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                           ngx_read_file_n " \"%s\" file retry_token_enc_info object "
+                           "item nums illegal, show less than: %d",
+                           name->data, NGX_QUIC_RETRY_MAX_KEY_NUM);
+        return NGX_ERROR;
+    }
+
+    quic_lb_conf->retry_service.retry_key_num = retry_token_enc_info_nums;
+    quic_lb_conf->retry_service.retry_token_enc_infos = ngx_palloc(cf->pool,
+                                                                   retry_token_enc_info_nums * sizeof(retry_token_enc_info_t));
+
+    for (i = 0; i < retry_token_enc_info_nums; i++) {
+        retry_token_enc_info_item = cJSON_GetArrayItem(retry_token_enc_info, i);
+
+        if (retry_token_enc_info_item == NULL) {
+            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                           ngx_read_file_n " \"%s\" file parse retry_token_enc_info object "
+                           "internal error", name->data);
+            return NGX_ERROR;
+        }
+
+        retry_key_seq = cJSON_GetObjectItem(retry_token_enc_info_item, "retry_key_seq");
+        if (retry_key_seq == NULL) {
+            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file retry_token_enc_info object has a wrong item, "
+                            "need \"retry_key_seq\" object ", name->data);
+            return NGX_ERROR;
+        }
+
+        if (retry_key_seq->valueint > 255 || retry_key_seq->valueint < 0) {
+            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file retry_service_ctx object has a wrong item, "
+                            "\"retry_key_seq\" should greater than 0 and less than 255");
+            return NGX_ERROR;
+        }
+
+        quic_lb_conf->retry_service.retry_token_enc_infos[i].retry_key_seq = (uint8_t)retry_key_seq->valueint;
+
+        retry_token_key = cJSON_GetObjectItem(retry_token_enc_info_item, "retry_token_key");
+        if (retry_token_key == NULL) {
+            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file retry_token_enc_info object has a wrong item, "
+                            "need \"retry_token_key\" object ", name->data);
+            return NGX_ERROR;
+        }
+
+        if (ngx_strlen(retry_token_key->valuestring) != NGX_QUIC_RETRY_KEY_LEN) {
+            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file retry_service_ctx object has a wrong item, "
+                            "\"retry_token_key\" len should be %d", name->data, NGX_QUIC_RETRY_KEY_LEN);
+            return NGX_ERROR;
+        }
+
+        ngx_memcpy(quic_lb_conf->retry_service.retry_token_enc_infos[i].retry_token_key,
+                retry_token_key->valuestring, NGX_QUIC_RETRY_KEY_LEN);
+
+        retry_token_iv_material = cJSON_GetObjectItem(retry_token_enc_info_item, "retry_token_iv_material");
+        if (retry_token_iv_material == NULL) {
+            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file retry_token_enc_info object has a wrong item, "
+                            "need \"retry_token_iv_material\" object ", name->data);
+            return NGX_ERROR;
+        }
+
+        if (ngx_strlen(retry_token_iv_material->valuestring) != NGX_QUIC_RETRY_IV_LEN) {
+            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file retry_service_ctx object has a wrong item, "
+                            "\"retry_token_key\" len should be %d", name->data, NGX_QUIC_RETRY_IV_LEN);
+            return NGX_ERROR;
+        }
+
+        ngx_memcpy(quic_lb_conf->retry_service.retry_token_enc_infos[i].retry_token_iv_material,
+                retry_token_iv_material->valuestring, NGX_QUIC_RETRY_IV_LEN);
+
+        retry_token_life_time = cJSON_GetObjectItem(retry_token_enc_info_item, "retry_token_life_time");
+        if (retry_token_life_time == NULL) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file retry_service_ctx object miss "
+                            "\"retry_token_life_time\" item, use default value", name->data);
+            quic_lb_conf->retry_service.retry_token_enc_infos[i].retry_token_alive_time = NGX_QUIC_RETRY_TOKEN_DEFAULT_LIFE_TIME;
+        } else {
+            quic_lb_conf->retry_service.retry_token_enc_infos[i].retry_token_alive_time = retry_token_life_time->valueint;
+        }
+    }
 
     return NGX_OK;
 }
@@ -981,7 +1079,7 @@ ngx_stream_quic_lb_handler(ngx_stream_session_t *s)
 
         if (s->pkt == NULL) {
             ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                "QUIC-LB, quic header packet alloc faild");
+                "QUIC-LB, quic header packet alloc failed");
             return NGX_ERROR;
         }
 
