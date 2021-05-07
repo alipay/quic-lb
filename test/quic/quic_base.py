@@ -236,7 +236,7 @@ class InitPacket:
         if (self.token_len == 0):
             return
         read_index += offset
-        # validate client token, if faild, return
+        # validate client token, if failed, return
         self.token = data[read_index:read_index+self.token_len]
 
     def singlebyte2int(self, data):
@@ -276,9 +276,3 @@ class InitPacket:
             offset = 8
 
         return l, offset
-
-
-
-
-
-

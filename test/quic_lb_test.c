@@ -42,10 +42,22 @@ static size_t test_encode_retry(const EVP_CIPHER  *cipher, test_retry_secret_t *
     test_string_t *out, u_char *nonce, test_string_t *in, test_string_t *pseu_pkt);
 
 
+
+size_t test_verify_token(unsigned int addr_value, u_char *token, size_t token_len)
+{
+    /*
+    * Todo:
+    * 1. get client ip
+    * 2. parse conf file
+    * 3. try to decrypt token body
+    */
+    return 1;
+}
+
 /*
  * only support ipv4 address currently.
  */
-size_t test_verify_token(unsigned int addr_value, u_char *token, size_t token_len) {
+size_t test_verify_token_quic_mode(unsigned int addr_value, u_char *token, size_t token_len) {
     int                     len, tlen, iv_len;
     u_char                 *iv, *p;
     time_t                  sec;
@@ -106,6 +118,7 @@ size_t test_verify_token(unsigned int addr_value, u_char *token, size_t token_le
 
     return 1;
 }
+
 
 /*
  * recompute tag with pseudo_data input, then compare

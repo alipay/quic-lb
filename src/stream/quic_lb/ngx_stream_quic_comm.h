@@ -14,6 +14,9 @@
 #include <ngx_stream.h>
 
 
+#define NGX_QUIC_DEBUG_CRYPTO
+
+
 #define NGX_QUIC_IV_LEN               12
 
 
@@ -68,8 +71,6 @@
 #define NGX_QUIC_DRAFT_VERSION               29
 #endif
 #define NGX_QUIC_VERSION  (0xff000000 + NGX_QUIC_DRAFT_VERSION)
-#define NGX_QUIC_MAX_TOKEN_SIZE              32
-#define NGX_QUIC_RETRY_BUFFER_SIZE           128
 
 
 #if (NGX_HAVE_NONALIGNED)
@@ -88,6 +89,9 @@
     ((uint32_t) (p)[0] << 24 | (p)[1] << 16 | (p)[2] << 8 | (p)[3])
 
 
+
+
+
 #define ngx_quic_write_uint16(p, s)                                           \
     ((p)[0] = (u_char) ((s) >> 8),                                            \
      (p)[1] = (u_char)  (s),                                                  \
@@ -101,14 +105,38 @@
      (p)[3] = (u_char)  (s),                                                  \
      (p) + sizeof(uint32_t))
 
+
 #endif
+
+
+#define ngx_quic_write_uint8(p, s)                                            \
+    ((p)[0] = (u_char)  (s),                                                  \
+     (p) + sizeof(uint8_t))
 
 
 #define ngx_quic_write_uint24(p, s)                                           \
     ((p)[0] = (u_char) ((s) >> 16),                                           \
      (p)[1] = (u_char) ((s) >> 8),                                            \
      (p)[2] = (u_char)  (s),                                                  \
-     (p) + 3)
+     (p) + sizeof(uint8_t) + sizeof(uint16_t))
+
+
+#define ngx_quic_write_uint64(p, s)                                           \
+    ((p)[0] = (u_char) ((s) >> 56),                                           \
+     (p)[1] = (u_char) ((s) >> 48),                                           \
+     (p)[2] = (u_char) ((s) >> 40),                                           \
+     (p)[3] = (u_char) ((s) >> 32),                                           \
+     (p)[4] = (u_char) ((s) >> 24),                                           \
+     (p)[5] = (u_char) ((s) >> 16),                                           \
+     (p)[6] = (u_char) ((s) >> 8),                                            \
+     (p)[7] = (u_char)  (s),                                                  \
+     (p) + sizeof(uint64_t))
+
+
+#define ngx_quic_parse_uint64(p)                                              \
+    ((uint64_t) (p)[0] << 56 | (uint64_t) (p)[1] << 48                        \
+     | (uint64_t) (p)[2] << 40 | (uint64_t) (p)[3] << 32                      \
+     | (p)[4] << 24 | (p)[5] << 16 | (p)[6] << 8 | (p)[7] )
 
 
 #define ngx_quic_write_uint16_aligned(p, s)                                   \
