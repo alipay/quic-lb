@@ -15,6 +15,7 @@
 
 
 #define NGX_STREAM_QUIC_LB_MAX_RETRY_TOKEN_SIZE   128
+#define NGX_QUIC_RETRY_IPV4_ADDR_LEN              4
 #define NGX_QUIC_RETRY_IP_ADDR_LEN                16
 #define NGX_QUIC_RETRY_MAX_TOKEN_LEN              77
 #define NGX_QUIC_RETRY_MIN_TOKEN_LEN              39
@@ -65,8 +66,8 @@ typedef struct {
 
 
 typedef struct {
-    uint8_t       odcid_len;
-    uint8_t       rscid_len;
+    uint8_t        odcid_len;
+    uint8_t        rscid_len;
     uint16_t       port;
     u_char         odcid[NGX_QUIC_RETRY_CID_LEN_MAX];
     u_char         rscid[NGX_QUIC_RETRY_CID_LEN_MAX];
