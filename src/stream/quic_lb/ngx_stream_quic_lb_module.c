@@ -542,10 +542,11 @@ ngx_stream_quic_lb_parse_long_header(ngx_quic_header_t *pkt)
         return NGX_DECLINED;
     }
 
-    if (pkt->version != NGX_QUIC_VERSION) {
-        /*
-         * todo: NGX_QUIC_VERSION constraint
-         */
+    if (pkt->version > NGX_QUIC_VERSION_UP) {
+        ngx_log_error(NGX_LOG_INFO, pkt->log, 0, "QUIC-LB, recv invalid quic version:%d",
+                      pkt->version & 0xff);
+
+        return NGX_ERROR;
     }
 
     p = ngx_quic_read_uint8(p, end, &idlen);
