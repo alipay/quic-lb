@@ -363,6 +363,14 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
         }
 
         if (ngx_quic_pkt_in(pkt->flags)) {
+            if (pkt->dcid.len < NGX_QUIC_CID_LEN_MIN) {
+                /* draft-transport-7.2. Negotiating Connection IDs */
+                ngx_log_error(NGX_LOG_INFO, c->log, 0,
+                              "quic too short dcid in initial"
+                              " packet: len:%i", pkt->dcid.len);
+                return NGX_ERROR;
+            }
+
             pkt->initial_pkt = 1;
             ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
                           "QUIC-LB, is init pkt");
