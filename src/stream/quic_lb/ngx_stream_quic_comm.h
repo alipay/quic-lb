@@ -71,7 +71,7 @@
 #define NGX_QUIC_DRAFT_VERSION               29
 #endif
 #define NGX_QUIC_VERSION  (0xff000000 + NGX_QUIC_DRAFT_VERSION)
-
+#define NGX_QUIC_VERSION_UP (0xff000000 + 34)
 
 #if (NGX_HAVE_NONALIGNED)
 
