@@ -15,6 +15,7 @@
 
 
 #define NGX_STREAM_QUIC_LB_MAX_RETRY_TOKEN_SIZE   128
+#define NGX_QUIC_RETRY_IPV4_ADDR_LEN              4
 #define NGX_QUIC_RETRY_IP_ADDR_LEN                16
 #define NGX_QUIC_RETRY_MAX_TOKEN_LEN              77
 #define NGX_QUIC_RETRY_MIN_TOKEN_LEN              39
@@ -29,6 +30,8 @@
 #define NGX_QUIC_RETRY_UNIQ_TOKEN_NUMBER_LEN      12
 #define NGX_QUIC_RETRY_KEY_SEQ_LEN                1
 #define NGX_QUIC_RETRY_CID_LEN_MAX                20
+/* TODO: make skew tobe config variable */
+#define NGX_QUIC_RETRY_TIMESTAMP_SKEW             5
 
 
 #define NGX_QUIC_RETRY_TOKEN_DEFAULT_LIFE_TIME    3000000
@@ -63,8 +66,8 @@ typedef struct {
 
 
 typedef struct {
-    uint8_t       odcid_len;
-    uint8_t       rscid_len;
+    uint8_t        odcid_len;
+    uint8_t        rscid_len;
     uint16_t       port;
     u_char         odcid[NGX_QUIC_RETRY_CID_LEN_MAX];
     u_char         rscid[NGX_QUIC_RETRY_CID_LEN_MAX];

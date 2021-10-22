@@ -603,6 +603,29 @@ class TestCase():
         assert addr[1] == self.quic_lb_port
         assert server.recv_correct_app_packet_num == 1
 
+    def test_nginx_quic_lb_retry_service_with_zero_length_odcid(self):
+        os.system("pkill nginx")
+        os.system("./quic_lb/nginx -p quic_lb -c conf/quic_lb_retry_on.conf")
+        self.client = quic_client.QuicClient(self.client_src_addr, self.client_src_port,
+                                             "", "", self.quic_lb_ip, self.quic_lb_port)
+        # 1. send initial packet without token
+        token = self.client.token_recved
+        test_payload = "this is test payload"
+        odcid = ""
+        self.client.odcid = odcid
+        self.client.odcid_len = 0
+        scid = self.client.gen_random_bytes(self.client_cid_len)
+        init_pkt = self.client.quic_construct_init_packet(token, test_payload, odcid, scid)
+        self.client.quic_sendto(init_pkt, self.quic_lb_ip, self.quic_lb_port)
+        self.client._socket.settimeout(0.5)
+
+        # 2. packet will be dropped by quic-lb, catch timeout exception
+        try:
+            data, addr = self.client.recvfrom()
+        except Exception as e:
+            assert str(e) == "timed out"
+
+
 # for some print, use this again
 if __name__ == "__main__":
     pytest.main(["-s", "quic_lb_test.py"])

@@ -311,7 +311,7 @@ ngx_stream_quic_lb_downstream_pkt_send_process(void *s_,
                                   "address token validation.");
             } else {
                 ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
-                              "QUIC-LB, do retry service failed, return.");
+                              "QUIC-LB, do retry service failed, return. downstream close session");
                 return NGX_ERROR;
             }
         }
