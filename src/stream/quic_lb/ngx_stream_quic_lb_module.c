@@ -312,7 +312,6 @@ ngx_stream_quic_lb_downstream_pkt_send_process(void *s_,
             } else {
                 ngx_log_error(NGX_LOG_DEBUG, c->pool->log, 0,
                               "QUIC-LB, do retry service failed, return. downstream close session");
-                ngx_stream_finalize_session(s, NGX_ERROR);
                 return NGX_ERROR;
             }
         }

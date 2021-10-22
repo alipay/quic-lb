@@ -36,7 +36,7 @@ static ngx_int_t ngx_stream_quic_lb_new_share_state_retry_token(ngx_connection_t
 static ngx_int_t ngx_stream_quic_lb_gen_share_state_plain_token_body(ngx_connection_t *c,
     retry_token_enc_info_t *enc_info, ngx_str_t *cids, u_char *buf, ngx_int_t buf_len,
     size_t *out_len);
-static ngx_int_t ngx_stream_quic_lb_parse_quic_lb_model_plain_token_body(ngx_connection_t *c,
+static ngx_int_t ngx_stream_quic_lb_parse_plaintext_token_body(ngx_connection_t *c,
     u_char *buf, ngx_int_t buf_len, ngx_quic_lb_retry_token_body_t *token_body);
 static ngx_int_t ngx_stream_quic_lb_validate_share_state_token(ngx_connection_t *c,
     ngx_quic_header_t *pkt, ngx_quic_lb_conf_t *qconf);
@@ -156,7 +156,8 @@ ngx_stream_quic_lb_gen_and_send_retry_packet(ngx_connection_t *c,
     return NGX_OK;
 }
 
-static ngx_int_t ngx_stream_quic_lb_validate_share_state_token_body(ngx_connection_t *c,
+static ngx_int_t
+ngx_stream_quic_lb_validate_share_state_token_body(ngx_connection_t *c,
     ngx_quic_lb_retry_token_body_t *token_body)
 {
     if (token_body == NULL) {
@@ -328,7 +329,7 @@ ngx_stream_quic_lb_validate_share_state_token(ngx_connection_t *c,
                      token_body_plaintext.data, token_body_plaintext.len);
 #endif
     /* you can implement your self define token validation here */
-    res = ngx_stream_quic_lb_parse_quic_lb_model_plain_token_body(c, token_body_plaintext.data,
+    res = ngx_stream_quic_lb_parse_plaintext_token_body(c, token_body_plaintext.data,
                                                                   token_body_plaintext.len, &token_body);
     if (res != NGX_OK) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
@@ -514,7 +515,7 @@ ngx_stream_quic_lb_gen_share_state_plain_token_body(ngx_connection_t *c,
 
 
 static ngx_int_t
-ngx_stream_quic_lb_parse_quic_lb_model_plain_token_body(ngx_connection_t *c, u_char *buf,
+ngx_stream_quic_lb_parse_plaintext_token_body(ngx_connection_t *c, u_char *buf,
     ngx_int_t buf_len, ngx_quic_lb_retry_token_body_t *token_body)
 {
     u_char   *p = buf;
