@@ -55,6 +55,8 @@ static ngx_int_t ngx_stream_upstream_init_quic_lb_peer(ngx_stream_session_t *s,
     ngx_stream_upstream_srv_conf_t *us);
 static ngx_int_t ngx_stream_upstream_get_quic_lb_peer(ngx_peer_connection_t *pc,
     void *data);
+static ngx_stream_upstream_rr_peer_t *ngx_stream_upstream_quic_lb_get_peer_by_plaintext_algo(
+    ngx_peer_connection_t *pc, ngx_stream_upstream_rr_peer_data_t *rrp);
 static ngx_stream_upstream_rr_peer_t * ngx_stream_upstream_quic_lb_get_peer_by_sid(
     ngx_peer_connection_t *pc, ngx_stream_upstream_rr_peer_data_t *rrp);
 static void ngx_stream_upstream_free_quic_lb_peer(ngx_peer_connection_t *pc, void *data,
@@ -613,10 +615,49 @@ ngx_stream_upstream_get_quic_lb_peer(ngx_peer_connection_t *pc, void *data)
 
 
 static ngx_stream_upstream_rr_peer_t *
-ngx_stream_upstream_quic_lb_get_peer_by_sid(ngx_peer_connection_t *pc,
+ngx_stream_upstream_quic_lb_get_peer_by_plaintext_algo(ngx_peer_connection_t *pc,
     ngx_stream_upstream_rr_peer_data_t *rrp)
 {
     ngx_stream_upstream_rr_peer_t  *peer, *best;
+
+    best = NULL;
+
+    for (peer = rrp->peers->peer; peer; peer = peer->next) {
+        if (ngx_strncmp(&rrp->pkt->dcid.data[1],
+                        peer->sid.data, peer->sid.len) == 0)
+        {
+            best = peer;
+        }
+    }
+
+    return best;
+}
+
+static ngx_stream_upstream_rr_peer_t *
+ngx_stream_upstream_quic_lb_get_peer_by_streamer_cipher_algo(ngx_peer_connection_t *pc,
+    ngx_stream_upstream_rr_peer_data_t *rrp)
+{
+    ngx_stream_upstream_rr_peer_t  *peer, *best;
+
+    best = NULL;
+
+    for (peer = rrp->peers->peer; peer; peer = peer->next) {
+        if (ngx_strncmp(&rrp->pkt->dcid.data[1],
+                        peer->sid.data, peer->sid.len) == 0)
+        {
+            best = peer;
+        }
+    }
+
+    return best;
+}
+
+
+static ngx_stream_upstream_rr_peer_t *
+ngx_stream_upstream_quic_lb_get_peer_by_sid(ngx_peer_connection_t *pc,
+    ngx_stream_upstream_rr_peer_data_t *rrp)
+{
+    ngx_stream_upstream_rr_peer_t  *best;
     ngx_quic_lb_conf_t             *quic_lb_conf;
 
     best = NULL;
@@ -628,22 +669,16 @@ ngx_stream_upstream_quic_lb_get_peer_by_sid(ngx_peer_connection_t *pc,
 
     quic_lb_conf = rrp->quic_lb_conf;
 
-    if (quic_lb_conf->quic_lb_route_mode == NGX_QUIC_LB_PLAINTEXT) {
-        for (peer = rrp->peers->peer; peer; peer = peer->next) {
-            if (ngx_strncmp(&rrp->pkt->dcid.data[1],
-                            peer->sid.data, peer->sid.len) == 0)
-            {
-                best = peer;
-            }
-        }
-    } else if (quic_lb_conf->quic_lb_route_mode == NGX_QUIC_LB_OBFUSCATED) {
-        /* Todo: implemetaion of NGX_QUIC_LB_OBFUSCATED */
-    } else if (quic_lb_conf->quic_lb_route_mode == NGX_QUIC_LB_STREAM_CIPHER) {
-        /* Todo: implemetaion of NGX_QUIC_LB_STREAM_CIPHER */
-    } else if (quic_lb_conf->quic_lb_route_mode == NGX_QUIC_LB_BLOCK_CIPHER) {
-        /* Todo: implemetaion of NGX_QUIC_LB_BLOCK_CIPHER */
-    } else {
-        /* Todo: error process */
+    switch (quic_lb_conf->quic_lb_route_mode)
+    {
+    case NGX_QUIC_LB_PLAINTEXT:
+        return ngx_stream_upstream_quic_lb_get_peer_by_plaintext_algo(pc, rrp);
+    case NGX_QUIC_LB_STREAM_CIPHER:
+        return ngx_stream_upstream_quic_lb_get_peer_by_streamer_cipher_algo(pc, rrp);
+    default:
+        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, pc->log, 0,
+                       "QUIC-LB, no route mode match");
+        break;
     }
 
     return best;

@@ -29,13 +29,18 @@ typedef enum {
 
 
 typedef struct {
+    ngx_int_t                   sid_len;
+    /* only for streamer cipher */
+    ngx_int_t                   nonce_len;
+    ngx_str_t                   enc_key;
+} ngx_quic_lb_route_ctx;
+
+typedef struct {
     ngx_int_t                   unset;
     ngx_flag_t                  valid;
     ngx_int_t                   conf_id;
     ngx_quic_lb_route_mode_e    quic_lb_route_mode;
-    ngx_int_t                   sid_len;
-    ngx_rbtree_t                sid_info_tree;
-    ngx_rbtree_node_t           sentinel;
+    ngx_quic_lb_route_ctx       route_ctx;
     ngx_quic_lb_retry_service_t retry_service;
 } ngx_quic_lb_conf_t;
 
