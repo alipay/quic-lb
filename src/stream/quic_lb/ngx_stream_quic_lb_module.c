@@ -12,6 +12,8 @@
 
 static char *ngx_stream_quic_lb_proxy_read_conf_file(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
+static ngx_int_t ngx_stream_quic_lb_parse_plaintext_route_ctx(ngx_conf_t *cf,
+    ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name, ngx_int_t i);
 static ngx_int_t ngx_stream_quic_lb_parse_json_conf_file(ngx_conf_t *cf,
     ngx_str_t *name, ngx_quic_lb_conf_t *quic_lb_conf);
 static ngx_int_t ngx_stream_quic_lb_parse_json(ngx_conf_t *cf,
@@ -293,7 +295,7 @@ ngx_stream_quic_lb_downstream_pkt_send_process(void *s_,
 
     /* sid include conf rotation byte, we only compare sid */
     if (ngx_strncmp(s->pkt->sid.data, rrp->pkt->sid.data,
-                       s->quic_lb_conf->sid_len) != 0)
+                       s->quic_lb_conf->route_ctx.sid_len) != 0)
     {
         rrp->pkt->dcid.len = s->pkt->dcid.len;
         rrp->pkt->sid.len = s->pkt->sid.len;
@@ -399,7 +401,7 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
     }
 
     pkt->conf_id = conf_id;
-    sid_len = conf_list[conf_id].sid_len;
+    sid_len = conf_list[conf_id].route_ctx.sid_len;
     if (sid_len > NGX_QUIC_CID_LEN_MAX - 1 || sid_len < 0) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
             "QUIC-LB, sid_len in current conf of short header packet has problem");
@@ -751,6 +753,42 @@ failed:
 
 
 static ngx_int_t
+ngx_stream_quic_lb_parse_plaintext_route_ctx(ngx_conf_t *cf,
+    ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name, ngx_int_t i)
+{
+    cJSON       *route_ctx, *sid_len;
+
+    route_ctx = cJSON_GetObjectItem(root, "route_ctx");
+    if (route_ctx == NULL) {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file does not have json "
+                            "object route_ctx, conf item index is: %d ", name->data, i);
+        return NGX_ERROR;
+    }
+
+    sid_len = cJSON_GetObjectItem(route_ctx, "sid_len");
+    if (sid_len == NULL) {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file does not have json "
+                            "object sid_len, conf item index is: %d ", name->data, i);
+        return NGX_ERROR;
+    }
+
+    quic_lb_conf->route_ctx.sid_len = sid_len->valuedouble;
+    if (quic_lb_conf->route_ctx.sid_len <= 0
+        || quic_lb_conf->route_ctx.sid_len > NGX_QUIC_CID_LEN_MAX)
+    {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file sid len was wrong"
+                            "conf item index is: %d", name->data, i);
+        return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
 ngx_stream_quic_lb_parse_json(ngx_conf_t *cf, ngx_quic_lb_conf_t *quic_lb_conf,
     u_char *buf, size_t size, ngx_str_t *name)
 {
@@ -780,7 +818,7 @@ ngx_stream_quic_lb_parse_json(ngx_conf_t *cf, ngx_quic_lb_conf_t *quic_lb_conf,
 
     for (i = 0; i < conf_num; i++) {
         cJSON     *conf;
-        cJSON     *conf_id, *route_mode, *sid_len;
+        cJSON     *conf_id, *route_mode;
         ngx_int_t  conf_index;
 
         conf = cJSON_GetArrayItem(root, i);
@@ -807,14 +845,6 @@ ngx_stream_quic_lb_parse_json(ngx_conf_t *cf, ngx_quic_lb_conf_t *quic_lb_conf,
             goto failed;
         }
 
-        sid_len = cJSON_GetObjectItem(conf, "sid_len");
-        if (sid_len == NULL) {
-            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
-                               ngx_read_file_n " \"%s\" file does not have json "
-                               "object sid_len, conf item index is: %d ", name->data, i);
-            goto failed;
-        }
-
         conf_index = conf_id->valueint;
         if (conf_index < 0 || conf_index > 2) {
             ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
@@ -836,31 +866,32 @@ ngx_stream_quic_lb_parse_json(ngx_conf_t *cf, ngx_quic_lb_conf_t *quic_lb_conf,
         quic_lb_conf[conf_index].conf_id = conf_index;
 
         if (ngx_stream_quic_lb_parse_retry_service_json(cf,
-            &(quic_lb_conf[conf_index]), conf, name) != NGX_OK) {
+            &(quic_lb_conf[conf_index]), conf, name) != NGX_OK)
+        {
             goto failed;
         }
 
         if (ngx_strcmp(route_mode->valuestring, "plaintext") == 0) {
             quic_lb_conf[conf_index].quic_lb_route_mode = NGX_QUIC_LB_PLAINTEXT;
-        } else if (ngx_strcmp(route_mode->valuestring, "obfuscated") == 0) {
-            quic_lb_conf[conf_index].quic_lb_route_mode = NGX_QUIC_LB_OBFUSCATED;
+            if (ngx_stream_quic_lb_parse_plaintext_route_ctx(cf,
+                    &(quic_lb_conf[conf_index]), conf, name, i) != NGX_OK)
+            {
+                goto failed;
+            }
+
         } else if (ngx_strcmp(route_mode->valuestring, "stream_cipher") == 0) {
             quic_lb_conf[conf_index].quic_lb_route_mode = NGX_QUIC_LB_STREAM_CIPHER;
-        } else if (ngx_strcmp(route_mode->valuestring, "block_cipher") == 0) {
-            quic_lb_conf[conf_index].quic_lb_route_mode = NGX_QUIC_LB_BLOCK_CIPHER;
+            if (ngx_stream_quic_lb_parse_plaintext_route_ctx(cf,
+                    &(quic_lb_conf[conf_index]), conf, name, i) != NGX_OK)
+            {
+                goto failed;
+            }
+
         } else {
             ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
                                ngx_read_file_n " \"%s\" file route mode does not match"
                                "any available route mode,conf item index is: %d ",
                                name->data, i);
-            goto failed;
-        }
-
-        quic_lb_conf[conf_index].sid_len = sid_len->valuedouble;
-        if (quic_lb_conf->sid_len <= 0 || quic_lb_conf->sid_len > NGX_QUIC_CID_LEN_MAX) {
-            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
-                               ngx_read_file_n " \"%s\" file sid len was wrong"
-                               "conf item index is: %d", name->data, i);
             goto failed;
         }
 

@@ -150,11 +150,14 @@ ngx_stream_quic_lb_gen_and_send_retry_packet(ngx_connection_t *c,
 
     len = c->send(c, res.data, res.len);
     if (len == NGX_ERROR || (size_t) len != res.len) {
+        ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
+                      "QUIC-LB, send retry packet error");
         return NGX_ERROR;
     }
 
     return NGX_OK;
 }
+
 
 static ngx_int_t
 ngx_stream_quic_lb_validate_share_state_token_body(ngx_connection_t *c,
@@ -188,6 +191,7 @@ ngx_stream_quic_lb_validate_share_state_token_body(ngx_connection_t *c,
 
     return NGX_OK;
 }
+
 
 static ngx_int_t
 ngx_stream_quic_lb_validate_share_state_token(ngx_connection_t *c,
@@ -261,6 +265,7 @@ ngx_stream_quic_lb_validate_share_state_token(ngx_connection_t *c,
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
                       "QUIC-LB, token validate failed, key_seq illegal");
         return NGX_ERROR;
+
     } else if (key_index == NGX_DECLINED) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
                       "QUIC-LB, token validate failed, can not find matched key_seq");
@@ -407,8 +412,8 @@ ngx_stream_quic_lb_gen_share_state_plain_token_body(ngx_connection_t *c,
     ngx_quic_lb_retry_token_body_t      token_body;
     ngx_str_t                           odcid, rscid;
 #ifdef NGX_QUIC_DEBUG_CRYPTO
-    u_char                             *debug_port_p;
-    u_char                             *debug_expire_time_p;
+    u_char                             *debug_port_p = NULL;
+    u_char                             *debug_expire_time_p = NULL;
 #endif
 
     odcid = cids[0];
@@ -520,8 +525,8 @@ ngx_stream_quic_lb_parse_plaintext_token_body(ngx_connection_t *c, u_char *buf,
 {
     u_char   *p = buf;
 #ifdef NGX_QUIC_DEBUG_CRYPTO
-    u_char                             *debug_port_p;
-    u_char                             *debug_expire_time_p;
+    u_char                             *debug_port_p = NULL;
+    u_char                             *debug_expire_time_p = NULL;
 #endif
     if (buf_len <= 1 + 1 + NGX_QUIC_RETRY_TIMESTAP_LEN) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
