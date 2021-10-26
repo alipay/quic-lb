@@ -36,13 +36,13 @@
 #define NGX_QUIC_CID_LEN_MAX                                20
 
 
-#define NGX_QUIC_LB_STREAMER_CIPHER_SID_LEN_MIN             1
-#define NGX_QUIC_LB_STREAMER_CIPHER_SID_LEN_MAX             11
-#define NGX_QUIC_LB_STREAMER_CIPHER_NONCE_LEN_MIN           4
-#define NGX_QUIC_LB_STREAMER_CIPHER_NONCE_LEN_MAX           16
-#define NGX_QUIC_LB_STREAMER_CIPHER_LIMIT_INFO_LEN          15
-#define NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN                 16
-#define NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN         16
+#define NGX_QUIC_LB_STREAM_CIPHER_SID_LEN_MIN               1
+#define NGX_QUIC_LB_STREAM_CIPHER_SID_LEN_MAX               11
+#define NGX_QUIC_LB_STREAM_CIPHER_NONCE_LEN_MIN             4
+#define NGX_QUIC_LB_STREAM_CIPHER_NONCE_LEN_MAX             16
+#define NGX_QUIC_LB_STREAM_CIPHER_LIMIT_INFO_LEN            15
+#define NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN                   16
+#define NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN           16
 
 
 #define NGX_QUIC_PKT_LONG       0x80  /* header form */

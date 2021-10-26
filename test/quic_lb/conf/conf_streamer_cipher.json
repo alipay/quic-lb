@@ -1,7 +1,7 @@
 [
     {
         "conf_id": 0,
-        "route_mode": "streamer_cipher",
+        "route_mode": "stream_cipher",
         "route_ctx": {
             "use_hex": true,
             "sid_len": 1,

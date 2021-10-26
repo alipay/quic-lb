@@ -30,7 +30,7 @@ typedef enum {
 
 typedef struct {
     ngx_int_t                   sid_len;
-    /* only for streamer cipher */
+    /* only for stream cipher */
     ngx_int_t                   nonce_len;
     ngx_str_t                   enc_key;
     ngx_int_t                   use_hex;
