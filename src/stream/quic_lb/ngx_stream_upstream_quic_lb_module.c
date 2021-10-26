@@ -633,20 +633,96 @@ ngx_stream_upstream_quic_lb_get_peer_by_plaintext_algo(ngx_peer_connection_t *pc
     return best;
 }
 
+
 static ngx_stream_upstream_rr_peer_t *
 ngx_stream_upstream_quic_lb_get_peer_by_streamer_cipher_algo(ngx_peer_connection_t *pc,
     ngx_stream_upstream_rr_peer_data_t *rrp)
 {
     ngx_stream_upstream_rr_peer_t  *peer, *best;
+    ngx_quic_lb_conf_t             *quic_lb_conf;
+    u_char                         *enc_key;
+    u_char                         *encrypted_server_id, *encrypted_nonce;
+    u_char                          padded_encrypted_nonce[NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN] = {0};
+    u_char                          server_id_intermediate[NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN] = {0};
+    u_char                          nonce[NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN] = {0};
+    u_char                          server_id[NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN] = {0};
+    ngx_int_t                       rc, i;
 
     best = NULL;
 
+    quic_lb_conf = rrp->quic_lb_conf;
+
+    encrypted_server_id = &rrp->pkt->dcid.data[1];
+    encrypted_nonce = &rrp->pkt->dcid.data[1 + quic_lb_conf->route_ctx.sid_len];
+    enc_key = quic_lb_conf->route_ctx.enc_key.data;
+
+    ngx_memcpy(padded_encrypted_nonce, encrypted_nonce, quic_lb_conf->route_ctx.nonce_len);
+
+
+    /* server_id_intermediate = encrypted_server_id ^ AES-ECB(key, padded-encrypted-nonce) */
+    rc = ngx_quic_aes_128_ecb_encrypt(encrypted_nonce, NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN,
+                                      enc_key, server_id_intermediate);
+    if (rc == NGX_ERROR || rc != NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN) {
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+                      "QUIC-LB, encrypt padded-encrypted-nonce error");
+        return NULL;
+    }
+
+    for (i = 0; i < quic_lb_conf->route_ctx.sid_len; i++) {
+        server_id_intermediate[i] = server_id_intermediate[i] ^ encrypted_server_id[i];
+    }
+    /* set padded data to zero */
+    ngx_memzero(&server_id_intermediate[i], NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN - i);
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(pc->log, "QUIC-LB, streamer cipher, padded_server_id_intermediate: ",
+                     server_id_intermediate, NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN);
+#endif
+
+    /* nonce = encrypted_nonce ^ AES-ECB(key, padded-server_id_intermediate) */
+    rc = ngx_quic_aes_128_ecb_encrypt(server_id_intermediate, NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN,
+                                      enc_key, nonce);
+    if (rc == NGX_ERROR || rc != NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN) {
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+                      "QUIC-LB, encrypt padded-server_id_intermediate error");
+        return NULL;
+    }
+
+    for (i = 0; i < quic_lb_conf->route_ctx.nonce_len; i++) {
+        nonce[i] = nonce[i] ^ encrypted_nonce[i];
+    }
+    /* set padded data to zero */
+    ngx_memzero(&nonce[i], NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN - i);
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(pc->log, "QUIC-LB, streamer cipher, padded_nonce: ",
+                     nonce, NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN);
+#endif
+
+    /* server_id = server_id_intermediate ^ AES-ECB(key, padded-nonce) */
+    rc = ngx_quic_aes_128_ecb_encrypt(server_id, NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN,
+                                      enc_key, nonce);
+    if (rc == NGX_ERROR || rc != NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN) {
+        ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
+                      "QUIC-LB, encrypt padded-nonce error");
+        return NULL;
+    }
+
+    for (i = 0; i < quic_lb_conf->route_ctx.sid_len; i++) {
+        server_id[i] = server_id[i] ^ server_id_intermediate[i];
+    }
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(pc->log, "QUIC-LB, decrypt sever id: ",
+                     server_id, quic_lb_conf->route_ctx.sid_len);
+#endif
+
     for (peer = rrp->peers->peer; peer; peer = peer->next) {
-        if (ngx_strncmp(&rrp->pkt->dcid.data[1],
-                        peer->sid.data, peer->sid.len) == 0)
-        {
+        if (ngx_strncmp(server_id, peer->sid.data, peer->sid.len) == 0) {
             best = peer;
         }
+    }
+
+    if (best == NULL) {
+        ngx_log_debug0(NGX_LOG_DEBUG_STREAM, pc->log, 0,
+                       "QUIC-LB, streamer cipher, no sid match");
     }
 
     return best;

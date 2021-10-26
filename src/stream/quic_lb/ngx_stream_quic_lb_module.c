@@ -14,6 +14,8 @@ static char *ngx_stream_quic_lb_proxy_read_conf_file(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_stream_quic_lb_parse_plaintext_route_ctx(ngx_conf_t *cf,
     ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name, ngx_int_t i);
+static ngx_int_t ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(ngx_conf_t *cf,
+    ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name, ngx_int_t i);
 static ngx_int_t ngx_stream_quic_lb_parse_json_conf_file(ngx_conf_t *cf,
     ngx_str_t *name, ngx_quic_lb_conf_t *quic_lb_conf);
 static ngx_int_t ngx_stream_quic_lb_parse_json(ngx_conf_t *cf,
@@ -756,7 +758,7 @@ static ngx_int_t
 ngx_stream_quic_lb_parse_plaintext_route_ctx(ngx_conf_t *cf,
     ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name, ngx_int_t i)
 {
-    cJSON       *route_ctx, *sid_len;
+    cJSON   *route_ctx, *sid_len;
 
     route_ctx = cJSON_GetObjectItem(root, "route_ctx");
     if (route_ctx == NULL) {
@@ -783,6 +785,127 @@ ngx_stream_quic_lb_parse_plaintext_route_ctx(ngx_conf_t *cf,
                             "conf item index is: %d", name->data, i);
         return NGX_ERROR;
     }
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(ngx_conf_t *cf,
+    ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name, ngx_int_t i)
+{
+    cJSON       *route_ctx, *sid_len, *nonce_len, *enc_key, *use_hex;
+    ngx_int_t    enc_key_len;
+    ngx_int_t    expected_enc_key_len;
+    u_char      *expected_enc_key;
+    u_char       enc_key_buf[NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN];
+    ngx_int_t    rc;
+
+    route_ctx = cJSON_GetObjectItem(root, "route_ctx");
+    if (route_ctx == NULL) {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                           ngx_read_file_n " \"%s\" file does not have json "
+                           "object route_ctx, conf item index is: %d ", name->data, i);
+        return NGX_ERROR;
+    }
+
+    sid_len = cJSON_GetObjectItem(route_ctx, "sid_len");
+    if (sid_len == NULL) {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                           ngx_read_file_n " \"%s\" file does not have json "
+                           "object sid_len, conf item index is: %d ", name->data, i);
+        return NGX_ERROR;
+    }
+
+    nonce_len = cJSON_GetObjectItem(route_ctx, "nonce_len");
+    if (nonce_len == NULL) {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                           ngx_read_file_n " \"%s\" file does not have json "
+                           "object nonce_len, conf item index is: %d ", name->data, i);
+        return NGX_ERROR;
+    }
+
+    enc_key = cJSON_GetObjectItem(route_ctx, "enc_key");
+    if (enc_key == NULL) {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file does not have json "
+                            "object enc_key, conf item index is: %d ", name->data, i);
+        return NGX_ERROR;
+    }
+
+    quic_lb_conf->route_ctx.use_hex = 0;
+    use_hex = cJSON_GetObjectItem(route_ctx, "use_hex");
+    if (use_hex && cJSON_IsTrue(use_hex)) {
+        quic_lb_conf->route_ctx.use_hex = 1;
+        ngx_conf_log_error(NGX_LOG_DEBUG, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file, conf item index is: %d, "
+                            "input key/iv is hex style ", name->data, i);
+    }
+
+    quic_lb_conf->route_ctx.sid_len = sid_len->valuedouble;
+    if (quic_lb_conf->route_ctx.sid_len <= NGX_QUIC_LB_STREAMER_CIPHER_SID_LEN_MIN
+        || quic_lb_conf->route_ctx.sid_len > NGX_QUIC_LB_STREAMER_CIPHER_SID_LEN_MAX)
+    {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file sid len was wrong, "
+                            "conf item index is: %d", name->data, i);
+        return NGX_ERROR;
+    }
+
+    quic_lb_conf->route_ctx.nonce_len = nonce_len->valuedouble;
+    if (quic_lb_conf->route_ctx.nonce_len < NGX_QUIC_LB_STREAMER_CIPHER_NONCE_LEN_MIN
+        || quic_lb_conf->route_ctx.nonce_len > NGX_QUIC_LB_STREAMER_CIPHER_NONCE_LEN_MAX)
+    {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file nonce len was wrong, "
+                            "conf item index is: %d", name->data, i);
+        return NGX_ERROR;
+    }
+
+    if (quic_lb_conf->route_ctx.sid_len + quic_lb_conf->route_ctx.nonce_len
+            > NGX_QUIC_LB_STREAMER_CIPHER_LIMIT_INFO_LEN)
+    {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file sid_len+nonce_len out of range, "
+                            "conf item index is: %d", name->data, i);
+        return NGX_ERROR;
+    }
+
+    enc_key_len = ngx_strlen(enc_key->valuestring);
+
+    if (quic_lb_conf->route_ctx.use_hex) {
+        expected_enc_key_len = 2 * NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN;
+        rc = ngx_quic_hexstring_to_string(enc_key_buf, (u_char *)enc_key->valuestring,
+                                          2 * NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN);
+        if (rc == NGX_ERROR) {
+            ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                               ngx_read_file_n " \"%s\" file, conf item index is: %d, "
+                               "enc_key is not follow hex style", name->data, i);
+            return NGX_ERROR;
+        }
+        expected_enc_key = enc_key_buf;
+    } else {
+        expected_enc_key_len = NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN;
+        expected_enc_key = (u_char *)enc_key->valuestring;
+    }
+
+    if (enc_key_len != expected_enc_key_len) {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                           ngx_read_file_n " \"%s\" file enc_key length error, "
+                           "conf item index is: %d", name->data, i);
+        return NGX_ERROR;
+    }
+
+    quic_lb_conf->route_ctx.enc_key.data = ngx_palloc(cf->pool, enc_key_len);
+    if (quic_lb_conf->route_ctx.enc_key.data == NULL) {
+        ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
+                            ngx_read_file_n " \"%s\" file, conf item index is: %d, "
+                            "ngx_palloc error", name->data, i);
+        return NGX_ERROR;
+    }
+
+    quic_lb_conf->route_ctx.enc_key.len = expected_enc_key_len;
+    ngx_memcpy(quic_lb_conf->route_ctx.enc_key.data, expected_enc_key, expected_enc_key_len);
 
     return NGX_OK;
 }
@@ -861,7 +984,6 @@ ngx_stream_quic_lb_parse_json(ngx_conf_t *cf, ngx_quic_lb_conf_t *quic_lb_conf,
         }
 
         quic_lb_conf[conf_index].unset = 0;
-
         /* store json item to quic_lb_conf */
         quic_lb_conf[conf_index].conf_id = conf_index;
 
@@ -881,7 +1003,7 @@ ngx_stream_quic_lb_parse_json(ngx_conf_t *cf, ngx_quic_lb_conf_t *quic_lb_conf,
 
         } else if (ngx_strcmp(route_mode->valuestring, "stream_cipher") == 0) {
             quic_lb_conf[conf_index].quic_lb_route_mode = NGX_QUIC_LB_STREAM_CIPHER;
-            if (ngx_stream_quic_lb_parse_plaintext_route_ctx(cf,
+            if (ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(cf,
                     &(quic_lb_conf[conf_index]), conf, name, i) != NGX_OK)
             {
                 goto failed;

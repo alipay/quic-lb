@@ -129,3 +129,65 @@ ngx_quic_parse_initial_header(ngx_quic_header_t *pkt)
 
     return NGX_OK;
 }
+
+
+ngx_int_t
+ngx_quic_hexstring_to_string(u_char *dst, u_char *src, ngx_int_t src_len)
+{
+    ngx_int_t  i, len;
+    ngx_int_t  rc;
+
+    if (dst == NULL || src == NULL || src_len < 0) {
+        return NGX_ERROR;
+    }
+
+    if (src_len % 2 != 0) {
+        return NGX_ERROR;
+    }
+
+    len = src_len / 2;
+
+    for (i = 0; i < len; i++) {
+        rc = ngx_hextoi(src + (2 * i), 2);
+        if (rc == NGX_ERROR) {
+            return NGX_ERROR;
+        }
+        dst[i] = (u_char)rc;
+    }
+
+    return NGX_OK;
+}
+
+ngx_int_t
+ngx_quic_aes_128_ecb_encrypt(u_char *plaintext, ngx_int_t plaintext_len,
+    u_char *key, u_char *ciphertext)
+{
+    EVP_CIPHER_CTX   *ctx;
+    int               len;
+    ngx_int_t         ciphertext_len;
+
+    ctx = EVP_CIPHER_CTX_new();
+    if (ctx == NULL) {
+        goto failed;
+    }
+
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL) <= 0 ) {
+        goto failed;
+    }
+
+    if (EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len) <= 0) {
+        goto failed;
+    }
+    ciphertext_len = len;
+
+    if (EVP_EncryptFinal_ex(ctx, ciphertext + len, &len) <= 0) {
+        goto failed;
+    }
+    ciphertext_len += len;
+
+    EVP_CIPHER_CTX_free(ctx);
+    return ciphertext_len;
+failed:
+    EVP_CIPHER_CTX_free(ctx);
+    return NGX_ERROR;
+}
