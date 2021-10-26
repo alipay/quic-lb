@@ -2,10 +2,12 @@
     {
         "conf_id": 0,
         "route_mode": "streamer_cipher",
-        "use_hex": true,
-        "sid_len": 1,
-        "nonce_len": 12,
-        "cid_enc_key": "484b2ed942d9f4765e45035da3340423",
+        "route_ctx": {
+            "use_hex": true,
+            "sid_len": 1,
+            "nonce_len": 12,
+            "enc_key": "4d9d0fd25a25e7f321ef464e13f9fa3d"
+        },
         "retry_service_ctx":{
             "retry_method":"shared_state",
             "retry_mode":"inactive",

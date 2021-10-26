@@ -2,6 +2,7 @@
 {
 	"conf_id": 0,
 	"route_mode": "plaintext",
+	"use_hex": false,
 	"route_ctx": {
 		"sid_len": 14
 	},

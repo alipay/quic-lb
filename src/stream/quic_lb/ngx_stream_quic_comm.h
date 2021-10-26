@@ -33,7 +33,16 @@
 
 
 #define NGX_QUIC_CID_LEN_MIN                                8
-#define NGX_QUIC_CID_LEN_MAX                               20
+#define NGX_QUIC_CID_LEN_MAX                                20
+
+
+#define NGX_QUIC_LB_STREAMER_CIPHER_SID_LEN_MIN             1
+#define NGX_QUIC_LB_STREAMER_CIPHER_SID_LEN_MAX             11
+#define NGX_QUIC_LB_STREAMER_CIPHER_NONCE_LEN_MIN           4
+#define NGX_QUIC_LB_STREAMER_CIPHER_NONCE_LEN_MAX           16
+#define NGX_QUIC_LB_STREAMER_CIPHER_LIMIT_INFO_LEN          15
+#define NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN                 16
+#define NGX_QUIC_LB_STREAMER_CIPHER_PADDED_DATA_LEN         16
 
 
 #define NGX_QUIC_PKT_LONG       0x80  /* header form */
@@ -236,4 +245,9 @@ u_char *ngx_quic_read_uint8(u_char *pos, u_char *end,
     uint8_t *value);
 u_char *ngx_quic_read_uint32(u_char *pos, u_char *end,
     uint32_t *value);
+ngx_int_t ngx_quic_hexstring_to_string(u_char *dst, u_char *src,
+    ngx_int_t src_len);
+ngx_int_t ngx_quic_aes_128_ecb_encrypt(u_char *plaintext, ngx_int_t plaintext_len,
+    u_char *key, u_char *ciphertext);
+
 #endif

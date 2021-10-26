@@ -33,6 +33,7 @@ typedef struct {
     /* only for streamer cipher */
     ngx_int_t                   nonce_len;
     ngx_str_t                   enc_key;
+    ngx_int_t                   use_hex;
 } ngx_quic_lb_route_ctx;
 
 typedef struct {
