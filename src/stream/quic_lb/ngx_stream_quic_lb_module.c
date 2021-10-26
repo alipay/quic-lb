@@ -14,7 +14,7 @@ static char *ngx_stream_quic_lb_proxy_read_conf_file(ngx_conf_t *cf,
     ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_stream_quic_lb_parse_plaintext_route_ctx(ngx_conf_t *cf,
     ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name, ngx_int_t i);
-static ngx_int_t ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(ngx_conf_t *cf,
+static ngx_int_t ngx_stream_quic_lb_parse_stream_cipher_route_ctx(ngx_conf_t *cf,
     ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name, ngx_int_t i);
 static ngx_int_t ngx_stream_quic_lb_parse_json_conf_file(ngx_conf_t *cf,
     ngx_str_t *name, ngx_quic_lb_conf_t *quic_lb_conf);
@@ -791,14 +791,14 @@ ngx_stream_quic_lb_parse_plaintext_route_ctx(ngx_conf_t *cf,
 
 
 static ngx_int_t
-ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(ngx_conf_t *cf,
+ngx_stream_quic_lb_parse_stream_cipher_route_ctx(ngx_conf_t *cf,
     ngx_quic_lb_conf_t *quic_lb_conf, cJSON *root, ngx_str_t *name, ngx_int_t i)
 {
     cJSON       *route_ctx, *sid_len, *nonce_len, *enc_key, *use_hex;
     ngx_int_t    enc_key_len;
     ngx_int_t    expected_enc_key_len;
     u_char      *expected_enc_key;
-    u_char       enc_key_buf[NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN];
+    u_char       enc_key_buf[NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN];
     ngx_int_t    rc;
 
     route_ctx = cJSON_GetObjectItem(root, "route_ctx");
@@ -843,8 +843,8 @@ ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(ngx_conf_t *cf,
     }
 
     quic_lb_conf->route_ctx.sid_len = sid_len->valuedouble;
-    if (quic_lb_conf->route_ctx.sid_len <= NGX_QUIC_LB_STREAMER_CIPHER_SID_LEN_MIN
-        || quic_lb_conf->route_ctx.sid_len > NGX_QUIC_LB_STREAMER_CIPHER_SID_LEN_MAX)
+    if (quic_lb_conf->route_ctx.sid_len <= NGX_QUIC_LB_STREAM_CIPHER_SID_LEN_MIN
+        || quic_lb_conf->route_ctx.sid_len > NGX_QUIC_LB_STREAM_CIPHER_SID_LEN_MAX)
     {
         ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
                             ngx_read_file_n " \"%s\" file sid len was wrong, "
@@ -853,8 +853,8 @@ ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(ngx_conf_t *cf,
     }
 
     quic_lb_conf->route_ctx.nonce_len = nonce_len->valuedouble;
-    if (quic_lb_conf->route_ctx.nonce_len < NGX_QUIC_LB_STREAMER_CIPHER_NONCE_LEN_MIN
-        || quic_lb_conf->route_ctx.nonce_len > NGX_QUIC_LB_STREAMER_CIPHER_NONCE_LEN_MAX)
+    if (quic_lb_conf->route_ctx.nonce_len < NGX_QUIC_LB_STREAM_CIPHER_NONCE_LEN_MIN
+        || quic_lb_conf->route_ctx.nonce_len > NGX_QUIC_LB_STREAM_CIPHER_NONCE_LEN_MAX)
     {
         ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
                             ngx_read_file_n " \"%s\" file nonce len was wrong, "
@@ -863,7 +863,7 @@ ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(ngx_conf_t *cf,
     }
 
     if (quic_lb_conf->route_ctx.sid_len + quic_lb_conf->route_ctx.nonce_len
-            > NGX_QUIC_LB_STREAMER_CIPHER_LIMIT_INFO_LEN)
+            > NGX_QUIC_LB_STREAM_CIPHER_LIMIT_INFO_LEN)
     {
         ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
                             ngx_read_file_n " \"%s\" file sid_len+nonce_len out of range, "
@@ -874,9 +874,9 @@ ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(ngx_conf_t *cf,
     enc_key_len = ngx_strlen(enc_key->valuestring);
 
     if (quic_lb_conf->route_ctx.use_hex) {
-        expected_enc_key_len = 2 * NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN;
+        expected_enc_key_len = 2 * NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN;
         rc = ngx_quic_hexstring_to_string(enc_key_buf, (u_char *)enc_key->valuestring,
-                                          2 * NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN);
+                                          2 * NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN);
         if (rc == NGX_ERROR) {
             ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
                                ngx_read_file_n " \"%s\" file, conf item index is: %d, "
@@ -885,7 +885,7 @@ ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(ngx_conf_t *cf,
         }
         expected_enc_key = enc_key_buf;
     } else {
-        expected_enc_key_len = NGX_QUIC_LB_STREAMER_CIPHER_KEY_LEN;
+        expected_enc_key_len = NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN;
         expected_enc_key = (u_char *)enc_key->valuestring;
     }
 
@@ -1003,7 +1003,7 @@ ngx_stream_quic_lb_parse_json(ngx_conf_t *cf, ngx_quic_lb_conf_t *quic_lb_conf,
 
         } else if (ngx_strcmp(route_mode->valuestring, "stream_cipher") == 0) {
             quic_lb_conf[conf_index].quic_lb_route_mode = NGX_QUIC_LB_STREAM_CIPHER;
-            if (ngx_stream_quic_lb_parse_streamer_cipher_route_ctx(cf,
+            if (ngx_stream_quic_lb_parse_stream_cipher_route_ctx(cf,
                     &(quic_lb_conf[conf_index]), conf, name, i) != NGX_OK)
             {
                 goto failed;
