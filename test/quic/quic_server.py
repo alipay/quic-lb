@@ -12,7 +12,7 @@ class QuicServer(quic_base.QuicBase, threading.Thread):
     _payload = bytearray("test payload")
     _cid_dict = {}
     _conf_id = 0
-    _debug_tag = False
+    _debug_tag = True
     client_ip = ""
     proxy_ip = ""
     client_port = ""

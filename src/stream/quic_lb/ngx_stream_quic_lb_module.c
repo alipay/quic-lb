@@ -225,7 +225,7 @@ ngx_stream_quic_lb_rechoose_peer(ngx_stream_session_t *s,
     /* connect to the new peer */
     rc = ngx_event_connect_peer(&u->peer);
 
-    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0, "QUIC-LB rechoose peer,"
+    ngx_log_debug1(NGX_LOG_DEBUG_STREAM, c->log, 0, "QUIC-LB rechoose peer, "
         "proxy connect: %i", rc);
 
     if (rc == NGX_ERROR) {
@@ -296,8 +296,9 @@ ngx_stream_quic_lb_downstream_pkt_send_process(void *s_,
     ngx_quic_hexdump(c->pool->log, "curr sid is", s->pkt->sid.data, s->pkt->sid.len);
 
     /* sid include conf rotation byte, we only compare sid */
-    if (ngx_strncmp(s->pkt->sid.data, rrp->pkt->sid.data,
-                       s->quic_lb_conf->route_ctx.sid_len) != 0)
+    if (rrp->pkt->sid.len != s->pkt->sid.len
+        || ngx_strncmp(s->pkt->sid.data, rrp->pkt->sid.data,
+                       s->pkt->sid.len) != 0)
     {
         rrp->pkt->dcid.len = s->pkt->dcid.len;
         rrp->pkt->sid.len = s->pkt->sid.len;
@@ -398,7 +399,7 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
     conf_id = ngx_stream_quic_lb_parse_config_rotation_bit(pkt);
     if (conf_id < NGX_QUIC_LB_CONF_ID_MIN || conf_id > NGX_QUIC_LB_CONF_ID_MAX) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-            "QUIC-LB, recv packet config rotation bit have problems");
+                      "QUIC-LB, recv packet config rotation bit have problems");
         return NGX_ERROR;
     }
 
@@ -406,14 +407,14 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
     sid_len = conf_list[conf_id].route_ctx.sid_len;
     if (sid_len > NGX_QUIC_CID_LEN_MAX - 1 || sid_len < 0) {
         ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-            "QUIC-LB, sid_len in current conf of short header packet has problem");
+                      "QUIC-LB, sid_len in current conf of short header packet has problem");
         return NGX_ERROR;
     }
 
     if (sid_len == 0) {
         if (ngx_quic_short_pkt(pkt->flags)) {
             ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
-                "QUIC-LB, short packet mismatch config file, drop it");
+                          "QUIC-LB, short packet mismatch config file, drop it");
             return NGX_ERROR;
         }
 
@@ -426,12 +427,30 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
 
 
     if (ngx_quic_short_pkt(pkt->flags)) {
+        ngx_int_t   route_info_len = 0;
+
         /*
-         * for short header packet, now we read sid_len data to pkt.dcid. Actually that's
-         * enough for route. remember we need read first oct and sid
+         * for short header packet, we just need route_info in dcid for routing,
+         * for plaintext route mode, length of route_info is 1+sid_len
+         * for stream cipher route mode, length of route_info is 1+sid_len+nonce_len
          */
-        if (ngx_stream_quic_lb_parse_short_header_with_fix_dcid_len(pkt,
-                sid_len + 1) != NGX_OK) {
+        switch (conf_list[conf_id].quic_lb_route_mode)
+        {
+        case NGX_QUIC_LB_PLAINTEXT:
+            route_info_len = sid_len + 1;
+            break;
+
+        case NGX_QUIC_LB_STREAM_CIPHER:
+            route_info_len = 1 + conf_list[conf_id].route_ctx.sid_len + conf_list[conf_id].route_ctx.nonce_len;
+            break;
+
+        default:
+            ngx_log_error(NGX_LOG_ERR, c->pool->log, 0,
+                          "QUIC-LB, short packet match unkonw route mode");
+            return NGX_ERROR;
+        }
+
+        if (ngx_stream_quic_lb_parse_short_header_with_fix_dcid_len(pkt, route_info_len) != NGX_OK) {
             return NGX_ERROR;
         }
     }
@@ -439,7 +458,10 @@ ngx_stream_quic_lb_parse_header_from_buf(ngx_quic_header_t *pkt, ngx_buf_t *buf,
     /* record dest sid, sid was composed by first byte and sid */
     pkt->sid.len = sid_len;
     pkt->sid.data = &pkt->dcid.data[1];
-
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(c->pool->log, "QUIC-LB, header dcid: ",
+                     pkt->dcid.data, pkt->dcid.len);
+#endif
     /*
      * pkt parse will change the buf->pos, actually we only need parse result,
      * so we change buf->pos to origin pos(pkt->data)
@@ -843,7 +865,7 @@ ngx_stream_quic_lb_parse_stream_cipher_route_ctx(ngx_conf_t *cf,
     }
 
     quic_lb_conf->route_ctx.sid_len = sid_len->valuedouble;
-    if (quic_lb_conf->route_ctx.sid_len <= NGX_QUIC_LB_STREAM_CIPHER_SID_LEN_MIN
+    if (quic_lb_conf->route_ctx.sid_len < NGX_QUIC_LB_STREAM_CIPHER_SID_LEN_MIN
         || quic_lb_conf->route_ctx.sid_len > NGX_QUIC_LB_STREAM_CIPHER_SID_LEN_MAX)
     {
         ngx_conf_log_error(NGX_LOG_CRIT, cf, ngx_errno,
@@ -872,9 +894,8 @@ ngx_stream_quic_lb_parse_stream_cipher_route_ctx(ngx_conf_t *cf,
     }
 
     enc_key_len = ngx_strlen(enc_key->valuestring);
-
+    expected_enc_key_len = NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN;
     if (quic_lb_conf->route_ctx.use_hex) {
-        expected_enc_key_len = 2 * NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN;
         rc = ngx_quic_hexstring_to_string(enc_key_buf, (u_char *)enc_key->valuestring,
                                           2 * NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN);
         if (rc == NGX_ERROR) {
@@ -884,8 +905,8 @@ ngx_stream_quic_lb_parse_stream_cipher_route_ctx(ngx_conf_t *cf,
             return NGX_ERROR;
         }
         expected_enc_key = enc_key_buf;
+        enc_key_len = enc_key_len / 2;
     } else {
-        expected_enc_key_len = NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN;
         expected_enc_key = (u_char *)enc_key->valuestring;
     }
 

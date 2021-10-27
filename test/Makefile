@@ -26,7 +26,7 @@ build : $(TARGET)
 
 test :
 	make build
-	pytest quic_lb_test.py
+	pytest *.py
 
 rebuild: veryclean everything
 

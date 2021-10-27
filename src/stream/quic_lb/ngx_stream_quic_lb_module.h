@@ -22,9 +22,7 @@
 
 typedef enum {
     NGX_QUIC_LB_PLAINTEXT = 1,
-    NGX_QUIC_LB_OBFUSCATED,
-    NGX_QUIC_LB_STREAM_CIPHER,
-    NGX_QUIC_LB_BLOCK_CIPHER
+    NGX_QUIC_LB_STREAM_CIPHER
 } ngx_quic_lb_route_mode_e;
 
 
