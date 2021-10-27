@@ -642,14 +642,13 @@ ngx_stream_upstream_quic_lb_get_peer_by_stream_cipher_algo(ngx_peer_connection_t
     ngx_quic_lb_conf_t             *quic_lb_conf;
     u_char                         *enc_key;
     u_char                         *encrypted_server_id, *encrypted_nonce;
-    u_char                          padded_encrypted_nonce[NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN] = {0};
-    u_char                          server_id_intermediate[NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN] = {0};
-    u_char                          nonce[NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN] = {0};
-    u_char                          server_id[NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN] = {0};
+    u_char                          padded_encrypted_nonce[NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN] = {0};
+    u_char                          server_id_intermediate[NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN] = {0};
+    u_char                          nonce[NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN] = {0};
+    u_char                          server_id[NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN] = {0};
     ngx_int_t                       rc, i;
 
     best = NULL;
-
     quic_lb_conf = rrp->quic_lb_conf;
 
     encrypted_server_id = &rrp->pkt->dcid.data[1];
@@ -657,22 +656,29 @@ ngx_stream_upstream_quic_lb_get_peer_by_stream_cipher_algo(ngx_peer_connection_t
     enc_key = quic_lb_conf->route_ctx.enc_key.data;
 
     ngx_memcpy(padded_encrypted_nonce, encrypted_nonce, quic_lb_conf->route_ctx.nonce_len);
-
-
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(pc->log, "QUIC-LB, stream cipher, enc_key: ",
+                     enc_key, quic_lb_conf->route_ctx.enc_key.len);
+    ngx_quic_hexdump(pc->log, "QUIC-LB, stream cipher, encrypted_nonce: ",
+                     encrypted_nonce, quic_lb_conf->route_ctx.nonce_len);
+#endif
     /* server_id_intermediate = encrypted_server_id ^ AES-ECB(key, padded-encrypted-nonce) */
-    rc = ngx_quic_aes_128_ecb_encrypt(encrypted_nonce, NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN,
+    rc = ngx_quic_aes_128_ecb_encrypt(padded_encrypted_nonce, NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN,
                                       enc_key, server_id_intermediate);
-    if (rc == NGX_ERROR || rc != NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN) {
+    if (rc == NGX_ERROR || rc != NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN) {
         ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "QUIC-LB, encrypt padded-encrypted-nonce error");
         return NULL;
     }
-
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(pc->log, "QUIC-LB, stream cipher, encrypted-padded-nonce: ",
+                     server_id_intermediate, NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN);
+#endif
     for (i = 0; i < quic_lb_conf->route_ctx.sid_len; i++) {
         server_id_intermediate[i] = server_id_intermediate[i] ^ encrypted_server_id[i];
     }
     /* set padded data to zero */
-    ngx_memzero(&server_id_intermediate[i], NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - i);
+    ngx_memzero(&server_id_intermediate[i], NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN - i);
 #ifdef NGX_QUIC_DEBUG_CRYPTO
     ngx_quic_hexdump(pc->log, "QUIC-LB, stream cipher, padded_server_id_intermediate: ",
                      server_id_intermediate, NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN);
@@ -681,11 +687,15 @@ ngx_stream_upstream_quic_lb_get_peer_by_stream_cipher_algo(ngx_peer_connection_t
     /* nonce = encrypted_nonce ^ AES-ECB(key, padded-server_id_intermediate) */
     rc = ngx_quic_aes_128_ecb_encrypt(server_id_intermediate, NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN,
                                       enc_key, nonce);
-    if (rc == NGX_ERROR || rc != NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN) {
+    if (rc == NGX_ERROR || rc != NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN) {
         ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "QUIC-LB, encrypt padded-server_id_intermediate error");
         return NULL;
     }
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(pc->log, "QUIC-LB, stream cipher, encrypted-padded-server_id_intermediate: ",
+                     nonce, NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN);
+#endif
 
     for (i = 0; i < quic_lb_conf->route_ctx.nonce_len; i++) {
         nonce[i] = nonce[i] ^ encrypted_nonce[i];
@@ -698,14 +708,17 @@ ngx_stream_upstream_quic_lb_get_peer_by_stream_cipher_algo(ngx_peer_connection_t
 #endif
 
     /* server_id = server_id_intermediate ^ AES-ECB(key, padded-nonce) */
-    rc = ngx_quic_aes_128_ecb_encrypt(server_id, NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN,
-                                      enc_key, nonce);
-    if (rc == NGX_ERROR || rc != NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN) {
+    rc = ngx_quic_aes_128_ecb_encrypt(nonce, NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN,
+                                      enc_key, server_id);
+    if (rc == NGX_ERROR || rc != NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN) {
         ngx_log_error(NGX_LOG_EMERG, pc->log, 0,
                       "QUIC-LB, encrypt padded-nonce error");
         return NULL;
     }
-
+#ifdef NGX_QUIC_DEBUG_CRYPTO
+    ngx_quic_hexdump(pc->log, "QUIC-LB, stream cipher, encrypted-padded-nonce ",
+                     server_id, NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN);
+#endif
     for (i = 0; i < quic_lb_conf->route_ctx.sid_len; i++) {
         server_id[i] = server_id[i] ^ server_id_intermediate[i];
     }

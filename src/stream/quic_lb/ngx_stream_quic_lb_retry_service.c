@@ -506,9 +506,9 @@ ngx_stream_quic_lb_gen_share_state_plain_token_body(ngx_connection_t *c,
                          debug_port_p, sizeof(token_body.port));
     }
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token body generate, odcid:",
-                     token_body.odcid, token_body.odcid_len);
+                     token_body.odcid, (int)token_body.odcid_len);
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token body generate, rscid:",
-                     token_body.rscid, token_body.rscid_len);
+                     token_body.rscid, (int)token_body.rscid_len);
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token body generate, expire_time:",
                      debug_expire_time_p, sizeof(token_body.expire_time));
 #endif
@@ -581,9 +581,9 @@ ngx_stream_quic_lb_parse_plaintext_token_body(ngx_connection_t *c, u_char *buf,
                          debug_port_p, sizeof(token_body->port));
     }
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token body validate, odcid:",
-                     token_body->odcid, token_body->odcid_len);
+                     token_body->odcid, (int)token_body->odcid_len);
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token body validate, rscid:",
-                     token_body->rscid, token_body->rscid_len);
+                     token_body->rscid, (int)token_body->rscid_len);
     ngx_quic_hexdump(c->pool->log, "QUIC-LB, quic retry token body validate, expire_time:",
                      debug_expire_time_p, sizeof(token_body->expire_time));
 #endif

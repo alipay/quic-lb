@@ -43,6 +43,11 @@
 #define NGX_QUIC_LB_STREAM_CIPHER_LIMIT_INFO_LEN            15
 #define NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN                   16
 #define NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN           16
+/*
+ * for aes-128 and PKCS7-padding, if a plaintext is 16B,
+ * there will be a padding 16B block in ciphertext
+ */
+#define NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN               32
 
 
 #define NGX_QUIC_PKT_LONG       0x80  /* header form */
