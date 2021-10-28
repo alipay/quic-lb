@@ -19,7 +19,7 @@ CFLAGS="-g2 -O0"
 ./auto/configure --with-debug \
                  --with-stream_quic_lb_module \
                  --with-openssl=libs/openssl \
-                 --with-cc-opt=" -I./libs/cJSON -Wall "   \
+                 --with-cc-opt=" -I./libs/cJSON -Wall -Wno-type-limits"   \
                  --with-ld-opt=" ./libs/cJSON/libcjson.a " \
                  --with-stream
 
