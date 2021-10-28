@@ -22,7 +22,7 @@ How to build
 How to use:
 ----
 All features and corresponding introductions and examples are shown below:
-- [Plaintext CID routing](/example/plaintext/README.md)
+- [Plaintext CID routing](example/plaintext/README.md)
 - [Stream cipher CID routing](example/stream_cipher/README.md)
 - [Retry sevice](example/retry_service/README.md)
 - [Proxy protocol](example/proxy_protocol/README.md)
