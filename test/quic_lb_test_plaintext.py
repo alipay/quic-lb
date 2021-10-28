@@ -66,7 +66,7 @@ class TestCase():
 
     def setup(self):
         os.system("pkill nginx")
-        os.system("./quic_lb/nginx -p quic_lb -c conf/quic_lb.conf")
+        os.system("./quic_lb/nginx -p quic_lb -c conf/quic_lb_plaintext.conf")
         self.server_arr = []
         self.server_arr_retry = []
         self.client = None
