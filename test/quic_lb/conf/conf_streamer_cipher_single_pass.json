@@ -1,0 +1,21 @@
+[
+    {
+        "conf_id": 0,
+        "route_mode": "stream_cipher",
+        "route_ctx": {
+            "use_hex": true,
+            "sid_len": 8,
+            "nonce_len": 8,
+            "enc_key": "8f95f09245765f80256934e50c66207f"
+        },
+        "retry_service_ctx":{
+            "retry_method":"shared_state",
+            "retry_mode":"inactive",
+            "retry_token_enc_info":[{
+                "retry_key_seq": 0,
+                "retry_token_key":"0123456789012345",
+                "retry_token_iv_material": "123456789012"
+            }]
+        }
+    }
+]
