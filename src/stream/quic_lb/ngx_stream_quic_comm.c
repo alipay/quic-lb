@@ -171,11 +171,11 @@ ngx_quic_aes_128_ecb_encrypt(u_char *plaintext, ngx_int_t plaintext_len,
         goto failed;
     }
 
-    if (EVP_CIPHER_CTX_set_padding(ctx, 0) <= 0) {
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL) <= 0 ) {
         goto failed;
     }
-
-    if (EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL) <= 0 ) {
+    
+    if (EVP_CIPHER_CTX_set_padding(ctx, 0) <= 0) {
         goto failed;
     }
 
@@ -210,11 +210,11 @@ ngx_quic_aes_128_ecb_decrypt(u_char *ciphertext, ngx_int_t ciphertext_len,
         goto failed;
     }
 
-    if (EVP_CIPHER_CTX_set_padding(ctx, 0) <= 0) {
+    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL) <= 0 ) {
         goto failed;
     }
 
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL) <= 0 ) {
+    if (EVP_CIPHER_CTX_set_padding(ctx, 0) <= 0) {
         goto failed;
     }
 

@@ -35,7 +35,7 @@ class TestCase():
     quic_lb_port = 8001
 
     server_hex_cid_list = [
-        "4dd2d05a7b0de9b2b9907afb5ecf8cc1",
+        "7a285a09f85280f4fd6abb434a7159e4",
         "4dd2d05a7b0de9b2b9907afb5ecf8cc2",
         "4dd2d05a7b0de9b2b9907afb5ecf8cc3",
         "4dd2d05a7b0de9b2b9907afb5ecf8cc4",
