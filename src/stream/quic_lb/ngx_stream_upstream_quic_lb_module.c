@@ -716,7 +716,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
         ngx_memcpy(left_2, &rrp->pkt->dcid.data[1], half_len);
         ngx_memcpy(right_2, &rrp->pkt->dcid.data[1 + half_len - 1], half_len);
         left_2[half_len - 1] &= 0xf0;
-        right_2[0] &= 0x0f; 
+        right_2[0] &= 0x0f;
     }
 #ifdef NGX_QUIC_DEBUG_CRYPTO
     ngx_quic_hexdump(pc->log, "QUIC-LB, stream cipher, dcid: ",
@@ -741,7 +741,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
         return NULL;
     }
 
-    rc = truncate_left(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text, 
+    rc = truncate_left(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
                        NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
     if (rc != NGX_OK) {
         return NULL;
@@ -767,7 +767,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
         return NULL;
     }
 
-    rc = truncate_right(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text, 
+    rc = truncate_right(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
                         NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
     if (rc != NGX_OK) {
         return NULL;
@@ -793,7 +793,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
         return NULL;
     }
 
-    rc = truncate_left(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text, 
+    rc = truncate_left(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
                        NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
     if (rc != NGX_OK) {
         return NULL;
@@ -805,7 +805,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
 
     left_0 = left_1;
     ngx_memcpy(plaintext, left_0,  half_len);
-    if (quic_lb_conf->route_ctx.sid_len < half_len || 
+    if (quic_lb_conf->route_ctx.sid_len < half_len ||
         ((rrp->pkt->dcid.len - 1) % 2 == 0 && quic_lb_conf->route_ctx.sid_len < half_len)) {
         goto done;
     }
@@ -825,7 +825,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
         return NULL;
     }
 
-    rc = truncate_right(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text, 
+    rc = truncate_right(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
                         NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
     if (rc != NGX_OK) {
         return NULL;

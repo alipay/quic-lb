@@ -174,7 +174,7 @@ ngx_quic_aes_128_ecb_encrypt(u_char *plaintext, ngx_int_t plaintext_len,
     if (EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, NULL) <= 0 ) {
         goto failed;
     }
-    
+
     if (EVP_CIPHER_CTX_set_padding(ctx, 0) <= 0) {
         goto failed;
     }
@@ -236,7 +236,7 @@ failed:
 }
 
 ngx_int_t
-expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits, 
+expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
     u_char *s2, ngx_int_t s2_bits)
 {
     ngx_int_t i, j, offset = 0;
@@ -257,7 +257,7 @@ expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
     for (i = 0; i < s1_byte; i++) {
         result[i] = s1[i];
     }
-    
+
     for (j = 0; j < s1_bitofbyte; j++) {
         result[i] |= (s1[i]) & (1 << (7 - j));
     }
@@ -269,7 +269,7 @@ expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
     for (i = NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1; i > NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1 - s2_byte; i--) {
         result[i] = s2[s2_byte + i - NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN + offset];
         ngx_log_error(NGX_LOG_INFO, ngx_cycle->log, 0,
-                      "QUIC-LB, i:%d s2_offset:%d result[i]:%02x s2[x]:%02x",i, s2_byte + i - NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN + offset, 
+                      "QUIC-LB, i:%d s2_offset:%d result[i]:%02x s2[x]:%02x",i, s2_byte + i - NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN + offset,
                       result[i], s2[s2_byte + i - NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN + offset]);
     }
 
@@ -280,7 +280,7 @@ expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
 }
 
 ngx_int_t
-expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits, 
+expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits,
     u_char *s2, ngx_int_t s2_bits)
 {
     ngx_int_t i, j, offset = 0;
@@ -301,7 +301,7 @@ expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits,
     for (i = 0; i < s2_byte; i++) {
         result[i] = s2[i];
     }
-    
+
     for (j = 0; j < s2_bitofbyte; j++) {
         result[i] |= (s2[i]) & (1 << (7 - j));
     }
