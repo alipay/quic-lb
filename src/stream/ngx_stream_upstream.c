@@ -517,6 +517,23 @@ ngx_stream_upstream_server(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
             us->sid.len = ngx_strlen((const char*)us->sid.data);
             continue;
         }
+
+        if (ngx_strncmp(value[i].data, "hexsid=", 7) == 0) {
+            if ((value[i].len - 7) % 2 != 0) {
+                goto invalid;
+            }
+            us->sid.len = (value[i].len - 7) / 2;
+            us->sid.data = ngx_pcalloc(cf->pool, us->sid.len);
+            if (us->sid.data == NULL) {
+                goto invalid;
+            }
+            ngx_int_t rc = ngx_quic_hexstring_to_string(us->sid.data, (u_char *)&value[i].data[7],
+                                                  value[i].len - 7);
+            if (rc == NGX_ERROR) {
+                goto invalid;
+            }
+            continue;
+        }
 #endif
 
         goto invalid;

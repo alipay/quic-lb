@@ -40,7 +40,7 @@
 #define NGX_QUIC_LB_STREAM_CIPHER_SID_LEN_MAX               11
 #define NGX_QUIC_LB_STREAM_CIPHER_NONCE_LEN_MIN             4
 #define NGX_QUIC_LB_STREAM_CIPHER_NONCE_LEN_MAX             16
-#define NGX_QUIC_LB_STREAM_CIPHER_LIMIT_INFO_LEN            15
+#define NGX_QUIC_LB_STREAM_CIPHER_LIMIT_INFO_LEN            19
 #define NGX_QUIC_LB_STREAM_CIPHER_KEY_LEN                   16
 #define NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN           16
 /*
@@ -254,5 +254,14 @@ ngx_int_t ngx_quic_hexstring_to_string(u_char *dst, u_char *src,
     ngx_int_t src_len);
 ngx_int_t ngx_quic_aes_128_ecb_encrypt(u_char *plaintext, ngx_int_t plaintext_len,
     u_char *key, u_char *ciphertext);
-
+ngx_int_t ngx_quic_aes_128_ecb_decrypt(u_char *ciphertext, ngx_int_t ciphertext_len,
+    u_char *key, u_char *plaintext);
+ngx_int_t expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits, 
+    u_char *s2, ngx_int_t s2_bits);
+ngx_int_t expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits, 
+    u_char *s2, ngx_int_t s2_bits);
+ngx_int_t truncate_left(u_char *result, ngx_int_t result_len, u_char *src, 
+    ngx_int_t src_len, ngx_int_t truncate_bits);
+ngx_int_t truncate_right(u_char *result, ngx_int_t result_len, u_char *src,
+    ngx_int_t src_len, ngx_int_t truncate_bits);
 #endif

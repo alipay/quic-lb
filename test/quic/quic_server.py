@@ -19,12 +19,13 @@ class QuicServer(quic_base.QuicBase, threading.Thread):
     proxy_port = ""
     use_retry = False
 
-    def __init__(self, threadID, src_addr, src_port, sid, conf_id, use_retry):
+    def __init__(self, threadID, src_addr, src_port, sid, conf_id, use_retry, cid_len=18):
         quic_base.QuicBase.__init__(self, src_addr, src_port)
         threading.Thread.__init__(self)
         self.threadID = threadID
         self._sid = sid
         self._sid_len = len(sid)
+        self._cid_len = cid_len
         if (conf_id == 0):
             self._conf_id = 0x00
         elif (conf_id == 1):
