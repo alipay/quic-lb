@@ -256,11 +256,11 @@ ngx_int_t ngx_quic_aes_128_ecb_encrypt(u_char *plaintext, ngx_int_t plaintext_le
     u_char *key, u_char *ciphertext);
 ngx_int_t ngx_quic_aes_128_ecb_decrypt(u_char *ciphertext, ngx_int_t ciphertext_len,
     u_char *key, u_char *plaintext);
-ngx_int_t expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits, 
+ngx_int_t expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
     u_char *s2, ngx_int_t s2_bits);
-ngx_int_t expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits, 
+ngx_int_t expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits,
     u_char *s2, ngx_int_t s2_bits);
-ngx_int_t truncate_left(u_char *result, ngx_int_t result_len, u_char *src, 
+ngx_int_t truncate_left(u_char *result, ngx_int_t result_len, u_char *src,
     ngx_int_t src_len, ngx_int_t truncate_bits);
 ngx_int_t truncate_right(u_char *result, ngx_int_t result_len, u_char *src,
     ngx_int_t src_len, ngx_int_t truncate_bits);
