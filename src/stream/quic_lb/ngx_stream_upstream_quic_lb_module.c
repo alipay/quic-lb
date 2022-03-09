@@ -728,7 +728,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
 #endif
     /* left_1 = left_2 ^ truncate_left(AES_ECB(key, expand_right(right_2), 0x04)) */
     expand_arg = 0x04;
-    rc = expand_right(expand_text, right_2, half_bits, &expand_arg, 8);
+    rc = ngx_quic_expand_right(expand_text, right_2, half_bits, &expand_arg, 8);
     if (rc != NGX_OK) {
         return NULL;
     }
@@ -741,8 +741,8 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
         return NULL;
     }
 
-    rc = truncate_left(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
-                       NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
+    rc = ngx_quic_truncate_left(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
+                                NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
     if (rc != NGX_OK) {
         return NULL;
     }
@@ -754,7 +754,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
 
     /* right_1 = right_2 ^ truncate_right(AES_ECB(key, expand_left(left_1, 0x03)) */
     expand_arg = 0x03;
-    rc = expand_left(expand_text, left_1, half_bits, &expand_arg, 8);
+    rc = ngx_quic_expand_left(expand_text, left_1, half_bits, &expand_arg, 8);
     if (rc != NGX_OK) {
         return NULL;
     }
@@ -767,8 +767,8 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
         return NULL;
     }
 
-    rc = truncate_right(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
-                        NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
+    rc = ngx_quic_truncate_right(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
+                                 NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
     if (rc != NGX_OK) {
         return NULL;
     }
@@ -780,7 +780,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
 
     /* left_0 = left_1 ^ truncate_left(AES_ECB(key, expand_right(right_1), 0x02)) */
     expand_arg = 0x02;
-    rc = expand_right(expand_text, right_1, half_bits, &expand_arg, 8);
+    rc = ngx_quic_expand_right(expand_text, right_1, half_bits, &expand_arg, 8);
     if (rc != NGX_OK) {
         return NULL;
     }
@@ -793,8 +793,8 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
         return NULL;
     }
 
-    rc = truncate_left(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
-                       NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
+    rc = ngx_quic_truncate_left(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
+                                NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
     if (rc != NGX_OK) {
         return NULL;
     }
@@ -812,7 +812,7 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
 
     /* right_0 = right_1 ^ truncate_right(AES_ECB(key, expand_left(left_0, 0x01))) */
     expand_arg = 0x01;
-    rc = expand_left(expand_text, left_0, half_bits, &expand_arg, 8);
+    rc = ngx_quic_expand_left(expand_text, left_0, half_bits, &expand_arg, 8);
     if (rc != NGX_OK) {
         return NULL;
     }
@@ -825,8 +825,8 @@ ngx_stream_upstream_quic_lb_get_peer_by_four_pass(ngx_peer_connection_t *pc,
         return NULL;
     }
 
-    rc = truncate_right(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
-                        NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
+    rc = ngx_quic_truncate_right(truncate_text, NGX_QUIC_LB_STREAM_CIPHER_ENC_BUF_LEN, cipher_text,
+                                 NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN, half_bits);
     if (rc != NGX_OK) {
         return NULL;
     }

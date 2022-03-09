@@ -236,7 +236,7 @@ failed:
 }
 
 ngx_int_t
-expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
+ngx_quic_expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
     u_char *s2, ngx_int_t s2_bits)
 {
     ngx_int_t i, j, offset = 0;
@@ -266,11 +266,9 @@ expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
         offset = 1;
     }
 
-    for (i = NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1; i > NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1 - s2_byte; i--) {
+    for (i = NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1;
+         i > NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1 - s2_byte; i--) {
         result[i] = s2[s2_byte + i - NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN + offset];
-        ngx_log_error(NGX_LOG_INFO, ngx_cycle->log, 0,
-                      "QUIC-LB, i:%d s2_offset:%d result[i]:%02x s2[x]:%02x",i, s2_byte + i - NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN + offset,
-                      result[i], s2[s2_byte + i - NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN + offset]);
     }
 
     for (j = 0; j < s2_bitofbyte; j++) {
@@ -280,7 +278,7 @@ expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
 }
 
 ngx_int_t
-expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits,
+ngx_quic_expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits,
     u_char *s2, ngx_int_t s2_bits)
 {
     ngx_int_t i, j, offset = 0;
@@ -321,7 +319,7 @@ expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits,
 }
 
 ngx_int_t
-truncate_left(u_char *result, ngx_int_t result_len, u_char *src, ngx_int_t src_len, ngx_int_t truncate_bits)
+ngx_quic_truncate_left(u_char *result, ngx_int_t result_len, u_char *src, ngx_int_t src_len, ngx_int_t truncate_bits)
 {
     ngx_int_t i, j;
     ngx_int_t truncate_byte, truncate_bitofbyte;
@@ -346,7 +344,7 @@ truncate_left(u_char *result, ngx_int_t result_len, u_char *src, ngx_int_t src_l
 }
 
 ngx_int_t
-truncate_right(u_char *result, ngx_int_t result_len, u_char *src, ngx_int_t src_len, ngx_int_t truncate_bits)
+ngx_quic_truncate_right(u_char *result, ngx_int_t result_len, u_char *src, ngx_int_t src_len, ngx_int_t truncate_bits)
 {
     ngx_int_t i, offset, j;
     ngx_int_t truncate_byte, truncate_bitofbyte;
