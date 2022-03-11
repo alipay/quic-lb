@@ -239,7 +239,7 @@ ngx_int_t
 ngx_quic_expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
     u_char *s2, ngx_int_t s2_bits)
 {
-    ngx_int_t i, j, offset = 0;
+    ngx_int_t offset = 0;
     ngx_int_t s1_byte, s1_bitofbyte, s2_byte, s2_bitofbyte;
 
 
@@ -254,26 +254,20 @@ ngx_quic_expand_left(u_char *result, u_char *s1, ngx_int_t s1_bits,
     s2_byte = s2_bits / 8;
     s2_bitofbyte = s2_bits % 8;
 
-    for (i = 0; i < s1_byte; i++) {
-        result[i] = s1[i];
-    }
-
-    for (j = 0; j < s1_bitofbyte; j++) {
-        result[i] |= (s1[i]) & (1 << (7 - j));
+    ngx_memcpy(result, s1, s1_byte);
+    if (s1_bitofbyte != 0) {
+        result[s1_byte] |= s1[s1_byte] & 0xf0;
     }
 
     if (s2_bitofbyte != 0) {
         offset = 1;
     }
 
-    for (i = NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1;
-         i > NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1 - s2_byte; i--) {
-        result[i] = s2[s2_byte + i - NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN + offset];
+    ngx_memcpy(result + NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN  - s2_byte - offset, s2, s2_byte + offset);
+    if (s2_bitofbyte != 0) {
+        result[NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN  - s2_byte - offset] &= 0x0f;
     }
 
-    for (j = 0; j < s2_bitofbyte; j++) {
-        result[i] |= (s2[0]) & (1 << j);
-    }
     return NGX_OK;
 }
 
@@ -281,7 +275,7 @@ ngx_int_t
 ngx_quic_expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits,
     u_char *s2, ngx_int_t s2_bits)
 {
-    ngx_int_t i, j, offset = 0;
+    ngx_int_t offset = 0;
     ngx_int_t s1_byte, s1_bitofbyte, s2_byte, s2_bitofbyte;
 
 
@@ -296,24 +290,18 @@ ngx_quic_expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits,
     s2_byte = s2_bits / 8;
     s2_bitofbyte = s2_bits % 8;
 
-    for (i = 0; i < s2_byte; i++) {
-        result[i] = s2[i];
-    }
-
-    for (j = 0; j < s2_bitofbyte; j++) {
-        result[i] |= (s2[i]) & (1 << (7 - j));
+    ngx_memcpy(result, s2, s2_byte);
+    if (s2_bitofbyte != 0) {
+        result[s2_byte] |= s2[s2_byte] & 0xf0;
     }
 
     if (s1_bitofbyte != 0) {
         offset = 1;
     }
 
-    for (i = NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1; i > NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN - 1 - s1_byte; i--) {
-        result[i] = s1[s1_byte + i - NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN + offset];
-    }
-
-    for (j = 0; j < s1_bitofbyte; j++) {
-        result[i] |= (s1[0]) & (1 << j);
+    ngx_memcpy(result + NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN  - s1_byte - offset, s1, s1_byte + offset);
+    if (s1_bitofbyte != 0) {
+        result[NGX_QUIC_LB_STREAM_CIPHER_PADDED_DATA_LEN  - s1_byte - offset] &= 0x0f;
     }
     return NGX_OK;
 }
@@ -321,7 +309,6 @@ ngx_quic_expand_right(u_char *result, u_char *s1, ngx_int_t s1_bits,
 ngx_int_t
 ngx_quic_truncate_left(u_char *result, ngx_int_t result_len, u_char *src, ngx_int_t src_len, ngx_int_t truncate_bits)
 {
-    ngx_int_t i, j;
     ngx_int_t truncate_byte, truncate_bitofbyte;
 
     truncate_byte = truncate_bits / 8;
@@ -332,21 +319,18 @@ ngx_quic_truncate_left(u_char *result, ngx_int_t result_len, u_char *src, ngx_in
     }
 
     ngx_memzero(result, result_len);
-
-    for (i = 0; i < truncate_byte; i++) {
-        result[i] = src[i];
+    ngx_memcpy(result, src, truncate_byte);
+    if (truncate_bitofbyte != 0) {
+        result[truncate_byte] |= src[truncate_byte] & 0xf0;
     }
 
-    for (j = 0; j < truncate_bitofbyte; j++) {
-        result[i] |= (src[i]) & (1 << (7 - j));
-    }
     return NGX_OK;
 }
 
 ngx_int_t
 ngx_quic_truncate_right(u_char *result, ngx_int_t result_len, u_char *src, ngx_int_t src_len, ngx_int_t truncate_bits)
 {
-    ngx_int_t i, offset, j;
+    ngx_int_t offset = 0;
     ngx_int_t truncate_byte, truncate_bitofbyte;
 
     truncate_byte = truncate_bits / 8;
@@ -361,13 +345,9 @@ ngx_quic_truncate_right(u_char *result, ngx_int_t result_len, u_char *src, ngx_i
     }
 
     ngx_memzero(result, result_len);
-
-    for (i = src_len - 1; i > src_len - 1 - truncate_byte; i--) {
-        result[truncate_byte + offset + i - src_len] = src[i];
-    }
-
-    for (j = 0; j < truncate_bitofbyte; j++) {
-        result[0] |= (src[i]) & (1 << j);
+    ngx_memcpy(result, src + src_len - truncate_byte - offset, truncate_byte + offset);
+    if (truncate_bitofbyte != 0) {
+            result[0] &= 0x0f;
     }
 
     return NGX_OK;
