@@ -26,6 +26,7 @@ All features and corresponding introductions and examples are shown below:
 - [Stream cipher CID routing](example/stream_cipher/README.md)
 - [Retry sevice](example/retry_service/README.md)
 - [Proxy protocol](example/proxy_protocol/README.md)
+- [Interop with ngtcp2](example/Interoperability_wtih_ngtcp2/README.md)
 
 How to test
 ----
@@ -33,20 +34,4 @@ How to test
 1. pip install pytest
 2. cd ${quic-lb-dir}/test
 3. make test
-```
-
-Additional:
-----
-1.you can test nginx-quic-lb with ngtcp2, like this:
-```
-1) git clone https://github.com/william-zk/ngtcp2
-2) build ngtcp2(see https://github.com/william-zk/ngtcp2/blob/master/README.rst)
-3) running ngtcp2-server:
-./server -d testRoot 127.0.0.1 8444 rsa.key rsa.crt --sid 127.0.0.1:8444
-./server -d testRoot 127.0.0.1 8443 rsa.key rsa.crt --sid 127.0.0.1:8443
-4) running a quic-lb(with tutorial quic_lb.conf)
-5) running ngtcp2-client to test basic quic transmission:
-./client 127.0.0.1 9001 https://127.0.0.1:4433/index.html -n 1 --no-quic-dump --no-http-dump  --download clientDownload
-6) running ngtcp2-client to test quic connection-migration:
-./client 127.0.0.1 9001 https://127.0.0.1:4433/index.html -n 1 --no-quic-dump --no-http-dump  --download clientDownload --change-local-addr 1 --delay-stream 2 --nat-rebinding
 ```
