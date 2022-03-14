@@ -4,9 +4,9 @@
         "route_mode": "stream_cipher",
         "route_ctx": {
             "use_hex": true,
-            "sid_len": 1,
-            "nonce_len": 12,
-            "enc_key": "4d9d0fd25a25e7f321ef464e13f9fa3d"
+            "sid_len": 3,
+            "nonce_len": 4,
+            "enc_key": "fdf726a9893ec05c0632d3956680baf0"
         },
         "retry_service_ctx":{
             "retry_method":"shared_state",
