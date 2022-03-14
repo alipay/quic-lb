@@ -493,13 +493,13 @@ ngx_stream_quic_lb_parse_short_header_with_fix_dcid_len(ngx_quic_header_t *pkt,
 
     p = ngx_quic_read_uint8(p, end, &pkt->flags);
     if (p == NULL) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet is too small to read flags");
         return NGX_ERROR;
     }
 
     if (!ngx_quic_short_pkt(pkt->flags)) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0, "QUIC-LB, quic not a short packet");
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0, "QUIC-LB, quic not a short packet");
         return NGX_ERROR;
     }
 
@@ -507,7 +507,7 @@ ngx_stream_quic_lb_parse_short_header_with_fix_dcid_len(ngx_quic_header_t *pkt,
                    "QUIC-LB, quic short packet flags:%xi", pkt->flags);
 
     if (!(pkt->flags & NGX_QUIC_PKT_FIXED_BIT)) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0, "QUIC-LB, quic fixed bit is not set");
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0, "QUIC-LB, quic fixed bit is not set");
         return NGX_DECLINED;
     }
 
@@ -516,7 +516,7 @@ ngx_stream_quic_lb_parse_short_header_with_fix_dcid_len(ngx_quic_header_t *pkt,
 
     p = ngx_quic_read_bytes(p, end, pkt->dcid.len, &pkt->dcid.data);
     if (p == NULL) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet is too small to read dcid");
         return NGX_ERROR;
     }
@@ -542,19 +542,19 @@ ngx_stream_quic_lb_parse_long_header(ngx_quic_header_t *pkt)
 
     p = ngx_quic_read_uint8(p, end, &pkt->flags);
     if (p == NULL) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet is too small to read flags");
         return NGX_ERROR;
     }
 
     if (!ngx_quic_long_pkt(pkt->flags)) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0, "QUIC-LB, not a quic long packet");
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0, "QUIC-LB, not a quic long packet");
         return NGX_ERROR;
     }
 
     p = ngx_quic_read_uint32(p, end, &pkt->version);
     if (p == NULL) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet is too small to read version");
         return NGX_ERROR;
     }
@@ -562,14 +562,14 @@ ngx_stream_quic_lb_parse_long_header(ngx_quic_header_t *pkt)
     ngx_log_debug2(NGX_LOG_DEBUG_EVENT, pkt->log, 0,
                    "QUIC-LB, quic long packet flags:%xi version:%xD",
                    pkt->flags, pkt->version);
-
+#if 0
     if (!(pkt->flags & NGX_QUIC_PKT_FIXED_BIT)) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0, "QUIC-LB, quic fixed bit is not set");
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0, "QUIC-LB, quic fixed bit is not set");
         return NGX_DECLINED;
     }
-
+#endif
     if (pkt->version > NGX_QUIC_VERSION_UP) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0, "QUIC-LB, recv invalid quic version:%d",
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0, "QUIC-LB, recv invalid quic version:%d",
                       pkt->version & 0xff);
 
         return NGX_ERROR;
@@ -577,13 +577,13 @@ ngx_stream_quic_lb_parse_long_header(ngx_quic_header_t *pkt)
 
     p = ngx_quic_read_uint8(p, end, &idlen);
     if (p == NULL) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet is too small to read dcid len");
         return NGX_ERROR;
     }
 
     if (idlen > NGX_QUIC_CID_LEN_MAX) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet dcid is too long");
         return NGX_ERROR;
     }
@@ -592,20 +592,20 @@ ngx_stream_quic_lb_parse_long_header(ngx_quic_header_t *pkt)
 
     p = ngx_quic_read_bytes(p, end, idlen, &pkt->dcid.data);
     if (p == NULL) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet is too small to read dcid");
         return NGX_ERROR;
     }
 
     p = ngx_quic_read_uint8(p, end, &idlen);
     if (p == NULL) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet is too small to read scid len");
         return NGX_ERROR;
     }
 
     if (idlen > NGX_QUIC_CID_LEN_MAX) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet scid is too long");
         return NGX_ERROR;
     }
@@ -614,7 +614,7 @@ ngx_stream_quic_lb_parse_long_header(ngx_quic_header_t *pkt)
 
     p = ngx_quic_read_bytes(p, end, idlen, &pkt->scid.data);
     if (p == NULL) {
-        ngx_log_error(NGX_LOG_INFO, pkt->log, 0,
+        ngx_log_error(NGX_LOG_ERR, pkt->log, 0,
                       "QUIC-LB, quic packet is too small to read scid");
         return NGX_ERROR;
     }
